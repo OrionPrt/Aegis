@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String     @id @default(cuid())
+  email            String     @unique
+  authKeyHash      String
+  saltBase64       String
+  vaultData        String?
+  vaultIv          String?
+  failedAttempts   Int        @default(0)
+  lockedUntil      DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  sessions         Session[]
+  auditLogs        AuditLog[]
+}
+
+// Une session = un appareil connecté
+// Remplace le refreshTokenHash unique sur User
+model Session {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  lookupToken      String    @unique  // 16 bytes hex — recherche O(1) par index
+  refreshTokenHash String             // bcrypt(secretToken) — vérification
+  userAgent        String?   // "Chrome 124 / macOS"
+  ipAddress        String?
+  lastUsedAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  expiresAt        DateTime  // TTL explicite — nettoyage facile
+
+  @@index([userId])
+}
+
+// Toutes les actions sensibles sont tracées ici
+model AuditLog {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  action    AuditAction
+  ipAddress String?
+  userAgent String?
+  metadata  Json?     // infos supplémentaires selon l'action
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+enum AuditAction {
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  REGISTER
+  VAULT_READ
+  VAULT_WRITE
+  SESSION_REVOKED
+  ACCOUNT_DELETED
+  PASSWORD_CHANGE_ATTEMPT
+}

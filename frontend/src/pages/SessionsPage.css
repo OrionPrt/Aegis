@@ -1,0 +1,277 @@
+/* ═══════════════════════════════════════════════════════
+   AEGIS — Sessions & Audit Page Styles
+   src/pages/SessionsPage.css
+   ═══════════════════════════════════════════════════════ */
+
+.sp-layout {
+    min-height: 100vh;
+    background: #0C0E14;
+    color: #E8E6E0;
+    font-family: 'Syne', sans-serif;
+    padding: 40px;
+    max-width: 860px;
+    margin: 0 auto;
+}
+
+.sp-header {
+    margin-bottom: 40px;
+}
+
+.sp-back {
+    background: none;
+    border: none;
+    color: #4A5068;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: 20px;
+    display: block;
+    transition: color 0.15s;
+}
+
+.sp-back:hover { color: #C9A84C; }
+
+.sp-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    color: #E8E6E0;
+}
+
+.sp-sub {
+    font-size: 13px;
+    color: #4A5068;
+    margin: 0;
+}
+
+.sp-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    gap: 12px;
+    color: #4A5068;
+}
+
+.loading-hex { font-size: 28px; color: #C9A84C; opacity: 0.5; }
+
+.sp-content { display: flex; flex-direction: column; gap: 32px; }
+
+/* ── Sections ────────────────────────────────────────────── */
+.sp-section {
+    background: #10121A;
+    border: 1px solid #1E2233;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid #1E2233;
+}
+
+.section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #E8E6E0;
+    margin: 0 0 3px;
+}
+
+.section-sub {
+    font-size: 11px;
+    color: #4A5068;
+    margin: 0;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── Sessions ────────────────────────────────────────────── */
+.sessions-list { padding: 8px 0; }
+
+.session-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 24px;
+    border-bottom: 1px solid #14161F;
+    transition: background 0.15s;
+}
+
+.session-card:last-child { border-bottom: none; }
+.session-card:hover { background: #141620; }
+
+.session-card.current {
+    background: #1A1A0E;
+    border-left: 2px solid #C9A84C;
+    padding-left: 22px;
+}
+
+.session-icon { font-size: 20px; flex-shrink: 0; }
+
+.session-info { flex: 1; min-width: 0; }
+
+.session-ua {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #D8D4CC;
+    margin-bottom: 4px;
+}
+
+.badge-current {
+    font-size: 10px;
+    background: #2A2310;
+    color: #C9A84C;
+    border: 1px solid #3A3010;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.session-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #4A5068;
+    font-family: 'JetBrains Mono', monospace;
+    flex-wrap: wrap;
+}
+
+.sep { color: #2A2E45; }
+
+.btn-revoke {
+    background: none;
+    border: 1px solid #2A2E45;
+    border-radius: 6px;
+    color: #4A5068;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 6px 10px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.btn-revoke:hover:not(:disabled) {
+    border-color: #3A1515;
+    color: #C85050;
+    background: #2A1010;
+}
+
+.btn-revoke:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-revoke-all {
+    background: none;
+    border: 1px solid #2A1515;
+    border-radius: 6px;
+    color: #C85050;
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 7px 14px;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+
+.btn-revoke-all:hover:not(:disabled) { background: #2A1010; }
+.btn-revoke-all:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Audit log ───────────────────────────────────────────── */
+.audit-list { padding: 4px 0; }
+
+.audit-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 24px;
+    border-bottom: 1px solid #14161F;
+    transition: background 0.15s;
+}
+
+.audit-row:last-child { border-bottom: none; }
+.audit-row:hover { background: #141620; }
+
+.audit-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+    font-family: 'JetBrains Mono', monospace;
+    background: #1A1D28;
+    color: #6B7490;
+}
+
+.audit-icon.action-login_success  { background: #0E2010; color: #70B870; }
+.audit-icon.action-register       { background: #1A1A0E; color: #C9A84C; }
+.audit-icon.action-login_failed   { background: #2A1010; color: #C85050; }
+.audit-icon.action-logout         { background: #10121A; color: #4A5068; }
+.audit-icon.action-vault_write    { background: #0E1E30; color: #5080C0; }
+.audit-icon.action-session_revoked { background: #2A1010; color: #C85050; }
+
+.audit-info { flex: 1; min-width: 0; }
+
+.audit-action {
+    font-size: 13px;
+    color: #D8D4CC;
+    margin-bottom: 3px;
+}
+
+.audit-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #4A5068;
+    font-family: 'JetBrains Mono', monospace;
+    flex-wrap: wrap;
+}
+
+.audit-meta-extra { color: #3A4058; }
+
+.audit-date {
+    font-size: 11px;
+    color: #3A4058;
+    font-family: 'JetBrains Mono', monospace;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ── Pagination ──────────────────────────────────────────── */
+.audit-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 16px 24px;
+    border-top: 1px solid #1E2233;
+}
+
+.btn-page {
+    background: #1A1D28;
+    border: 1px solid #2A2E45;
+    border-radius: 6px;
+    color: #8B90A8;
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 7px 14px;
+    transition: all 0.15s;
+}
+
+.btn-page:hover:not(:disabled) { border-color: #C9A84C; color: #C9A84C; }
+.btn-page:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.page-info {
+    font-size: 11px;
+    color: #4A5068;
+    font-family: 'JetBrains Mono', monospace;
+}
