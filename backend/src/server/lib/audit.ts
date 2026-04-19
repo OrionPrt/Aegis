@@ -85,7 +85,7 @@ export async function logAudit(
                 action,
                 ipAddress: getIp(req),
                 userAgent: getUserAgent(req),
-                metadata:  metadata ?? {},
+                metadata:  metadata ?? {} as object,
             },
         });
     } catch (err) {

@@ -289,11 +289,10 @@ async function handleResponse(response: Response): Promise<unknown> {
 // ─────────────────────────────────────────────────────────
 
 export class AuthError extends Error {
-    constructor(
-        message: string,
-        public readonly status: number
-    ) {
+    readonly status: number;
+    constructor(message: string, status: number) {
         super(message);
         this.name = "AuthError";
+        this.status = status;
     }
 }
