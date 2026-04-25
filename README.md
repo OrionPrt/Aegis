@@ -71,3 +71,16 @@ export default defineConfig([
   },
 ])
 ```
+
+``` shell
+docker run --name aegis-db \
+  -e POSTGRES_USER=aegis \
+  -e POSTGRES_PASSWORD=aegis_dev \
+  -e POSTGRES_DB=aegis \
+  -p 5432:5432 \
+  -d postgres:16
+```
+
+```bash
+docker container start aegis-db
+```

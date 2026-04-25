@@ -60,6 +60,14 @@ app.get("/api/health", async (_req, reply) => {
     return reply.send({ status: "ok" });
 });
 
+import fastifyCors from "@fastify/cors";
+
+await app.register(fastifyCors, {
+    origin: "https://aegis-n69mysusp-prietoorion-1818s-projects.vercel.app/",
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+});
+
 // ─── Routes ───────────────────────────────────────────────
 await app.register(authRoutes,  { prefix: "/api/auth" });
 await app.register(vaultRoutes, { prefix: "/api/vault" });
