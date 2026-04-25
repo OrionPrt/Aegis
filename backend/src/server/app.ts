@@ -13,8 +13,15 @@ import fastifyHelmet from "@fastify/helmet";
 import { authRoutes } from "./routes/auth.js";
 import { vaultRoutes } from "./routes/vault.js";
 import { sessionRoutes } from "./routes/sessions.js";
+import { fastifyCors } from "@fastify/cors";
 
 const app = Fastify({ logger: true, trustProxy: true });
+
+await app.register(fastifyCors, {
+    origin: "https://aegis-eight-drab.vercel.app",
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+});
 
 // ─── Sécurité HTTP ────────────────────────────────────────
 await app.register(fastifyHelmet, {
@@ -58,14 +65,6 @@ await app.register(fastifyRateLimit, {
 // ─── Health check ─────────────────────────────────────────
 app.get("/api/health", async (_req, reply) => {
     return reply.send({ status: "ok" });
-});
-
-import fastifyCors from "@fastify/cors";
-
-await app.register(fastifyCors, {
-    origin: "https://aegis-n69mysusp-prietoorion-1818s-projects.vercel.app/",
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE"],
 });
 
 // ─── Routes ───────────────────────────────────────────────
