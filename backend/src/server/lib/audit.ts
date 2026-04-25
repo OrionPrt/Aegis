@@ -6,6 +6,7 @@
  */
 
 import { PrismaClient, AuditAction } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import type { FastifyRequest } from "fastify";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
@@ -85,7 +86,7 @@ export async function logAudit(
                 action,
                 ipAddress: getIp(req),
                 userAgent: getUserAgent(req),
-                metadata:  metadata ?? {} as object,
+                metadata:  (metadata ?? {}) as Prisma.InputJsonValue,
             },
         });
     } catch (err) {
