@@ -72,7 +72,7 @@ export interface VaultEntry {
 // ─────────────────────────────────────────────────────────
 
 /** Convertit un ArrayBuffer en chaîne Base64 */
-function bufferToBase64(buffer: ArrayBuffer): string {
+function bufferToBase64(buffer: ArrayBufferLike): string {
     return btoa(String.fromCharCode(...new Uint8Array(buffer)));
 }
 
@@ -178,7 +178,7 @@ export async function encryptVault(
     masterKey: CryptoKey
 ): Promise<EncryptedPayload> {
     // IV unique et aléatoire pour CHAQUE chiffrement — obligatoire en GCM
-    const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+    const iv = crypto.getRandomValues(new Uint8Array(new ArrayBuffer(IV_LENGTH)));
 
     const plaintext = new TextEncoder().encode(JSON.stringify(data));
 
@@ -207,8 +207,8 @@ export async function decryptVault(
     payload: EncryptedPayload,
     masterKey: CryptoKey
 ): Promise<VaultEntry[]> {
-    const iv         = base64ToBuffer(payload.iv);
-    const ciphertext = base64ToBuffer(payload.ciphertext);
+    const iv         = base64ToBuffer(payload.iv).slice() as Uint8Array<ArrayBuffer>;
+    const ciphertext = base64ToBuffer(payload.ciphertext).slice() as Uint8Array<ArrayBuffer>;
 
     let plaintextBuffer: ArrayBuffer;
     try {
