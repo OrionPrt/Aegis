@@ -87,7 +87,7 @@ app.setErrorHandler((error, _req, reply) => {
 
 // ─── Démarrage ────────────────────────────────────────────
 try {
-    await app.listen({ port: 3000, host: "0.0.0.0" });
+    await app.listen({ port: parseInt(process.env.PORT ?? "3000"), host: "0.0.0.0" });
     console.log("🛡️  Aegis server running on port 3000");
 } catch (err) {
     app.log.error(err);
