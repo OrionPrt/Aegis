@@ -221,6 +221,13 @@ export default function VaultPage() {
                         >
                             + Ajouter
                         </button>
+                        <button
+                            className="icon-btn mobile-logout-btn"
+                            title="Déconnexion"
+                            onClick={handleLogout}
+                        >
+                            ⏻
+                        </button>
                     </div>
                 </div>
 
@@ -243,6 +250,12 @@ export default function VaultPage() {
             {/* ── PANNEAU DE DÉTAIL ─────────────────────────────── */}
             {selected ? (
                 <aside className="vault-detail">
+                    <button
+                        className="mobile-back-btn"
+                        onClick={() => setSelected(null)}
+                    >
+                        ← Retour
+                    </button>
                     <div className="detail-header">
                         <div className="detail-icon-wrap">
                             <div className="detail-icon">{getFavicon(selected)}</div>
