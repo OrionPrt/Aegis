@@ -5,13 +5,11 @@
  * ╚═══════════════════════════════════════════════════════╝
  */
 
-import { PrismaClient, AuditAction } from "@prisma/client";
-import type { Prisma } from "@prisma/client";
+import type { AuditAction, Prisma } from "@prisma/client";
 import type { FastifyRequest } from "fastify";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
-
-const prisma = new PrismaClient();
+import { prisma } from "./prisma.js";
 
 const BCRYPT_ROUNDS       = 12;
 const SESSION_TTL_MS      = 7 * 24 * 60 * 60 * 1000; // 7 jours

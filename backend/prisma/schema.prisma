@@ -3,8 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // URL "pooled" (Neon: se termine par -pooler dans le hostname) — utilisée
+  // à l'exécution par les fonctions serverless, avec ?pgbouncer=true.
+  url       = env("DATABASE_URL")
+  // URL directe (sans pooler) — utilisée uniquement par `prisma migrate deploy`.
+  directUrl = env("DIRECT_URL")
 }
 
 model User {

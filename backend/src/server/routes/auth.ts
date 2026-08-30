@@ -8,7 +8,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../lib/prisma.js";
 import {
     createSession,
     validateRefreshToken,
@@ -16,16 +16,6 @@ import {
     revokeSession,
     logAudit,
 } from "../lib/audit.js";
-
-declare module "fastify" {
-    interface FastifyRequest {
-        jwtVerify(): Promise<JwtPayload>;
-        cookies: Record<string, string | undefined>;
-    }
-    interface FastifyReply {
-        jwtSign(payload: JwtPayload, options?: { expiresIn: string }): Promise<string>;
-    }
-}
 
 interface JwtPayload { sub: string; email: string; }
 
@@ -36,8 +26,6 @@ interface CookieOptions {
     path?: string;
     maxAge?: number;
 }
-
-const prisma = new PrismaClient();
 
 const BCRYPT_ROUNDS       = 12;
 const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;

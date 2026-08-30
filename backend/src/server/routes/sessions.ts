@@ -11,7 +11,7 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "./auth.js";
 import {
     getUserSessions,
@@ -19,8 +19,6 @@ import {
     revokeAllSessions,
     logAudit,
 } from "../lib/audit.js";
-
-const prisma = new PrismaClient();
 
 interface JwtPayload { sub: string; email: string; }
 

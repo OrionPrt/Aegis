@@ -12,10 +12,8 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "./auth.js";
-
-const prisma = new PrismaClient();
 
 // ─────────────────────────────────────────────────────────
 // TYPES
