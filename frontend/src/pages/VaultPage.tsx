@@ -3,13 +3,15 @@
  * ║           AEGIS — Interface du Vault (finale)         ║
  * ║           src/pages/VaultPage.tsx                     ║
  * ╚═══════════════════════════════════════════════════════╝
- *
- * Ajoute dans index.html <head> :
- * <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
  */
 
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+    Shield, Search, LayoutGrid, KeyRound, CreditCard, StickyNote,
+    RefreshCw, ShieldCheck, LogOut, Trash2, Plus, Copy, Check,
+    Eye, EyeOff, ExternalLink, Pencil, AlertTriangle, X, ArrowLeft,
+} from "lucide-react";
 import { generatePassword, evaluatePasswordStrength } from "../lib/crypto";
 import { getSession, logout } from "../lib/auth-client";
 import { useVault } from "../hooks/useVault";
@@ -106,7 +108,7 @@ export default function VaultPage() {
     if (loading) {
         return (
             <div className="vault-loading">
-                <span className="loading-hex">⬡</span>
+                <Shield className="loading-mark" size={28} strokeWidth={1.75} />
                 <p>Déchiffrement du vault…</p>
             </div>
         );
@@ -115,8 +117,8 @@ export default function VaultPage() {
     if (vaultError && status === "error") {
         return (
             <div className="vault-loading">
-                <span className="loading-hex" style={{ color: "#C85050" }}>⚠</span>
-                <p style={{ color: "#C85050" }}>{vaultError}</p>
+                <AlertTriangle className="loading-mark loading-mark-danger" size={28} strokeWidth={1.75} />
+                <p className="loading-text-danger">{vaultError}</p>
                 <button className="btn-primary" style={{ marginTop: "16px" }} onClick={() => window.location.reload()}>
                     Réessayer
                 </button>
@@ -130,15 +132,15 @@ export default function VaultPage() {
             {/* ── SIDEBAR ──────────────────────────────────────── */}
             <aside className="vault-sidebar">
                 <div className="sidebar-logo">
-                    <span className="logo-mark">⬡</span>
+                    <span className="logo-mark"><Shield size={17} strokeWidth={2} /></span>
                     <div>
-                        <div className="logo-name">AEGIS</div>
+                        <div className="logo-name">Aegis</div>
                         <div className="logo-tagline">Password Vault</div>
                     </div>
                 </div>
 
                 <div className="sidebar-search">
-                    <span className="search-icon">⌕</span>
+                    <Search className="search-icon" size={15} strokeWidth={2} />
                     <input
                         placeholder="Rechercher..."
                         value={search}
@@ -148,33 +150,36 @@ export default function VaultPage() {
 
                 <nav className="sidebar-nav">
                     <div className="nav-section-label">Vault</div>
-                    {(["all", "login", "card", "note"] as const).map((cat) => (
-                        <button
-                            key={cat}
-                            className={`nav-item ${category === cat ? "active" : ""}`}
-                            onClick={() => setCategory(cat)}
-                        >
-                            <span className="nav-icon">{CATEGORY_ICONS[cat]}</span>
-                            <span className="nav-label">{CATEGORY_LABELS[cat]}</span>
-                            <span className="nav-count">{counts[cat]}</span>
-                        </button>
-                    ))}
+                    {(["all", "login", "card", "note"] as const).map((cat) => {
+                        const CatIcon = CATEGORY_ICONS[cat];
+                        return (
+                            <button
+                                key={cat}
+                                className={`nav-item ${category === cat ? "active" : ""}`}
+                                onClick={() => setCategory(cat)}
+                            >
+                                <span className="nav-icon"><CatIcon size={15} strokeWidth={2} /></span>
+                                <span className="nav-label">{CATEGORY_LABELS[cat]}</span>
+                                <span className="nav-count">{counts[cat]}</span>
+                            </button>
+                        );
+                    })}
 
-                    <div className="nav-section-label" style={{ marginTop: "20px" }}>Outils</div>
+                    <div className="nav-section-label">Outils</div>
                     <button
                         className="nav-item"
                         onClick={() => { setEditEntry(null); setShowModal(true); }}
                     >
-                        <span className="nav-icon">⟳</span>
+                        <span className="nav-icon"><RefreshCw size={15} strokeWidth={2} /></span>
                         <span className="nav-label">Générateur</span>
                     </button>
 
-                    <div className="nav-section-label" style={{ marginTop: "20px" }}>Sessions</div>
+                    <div className="nav-section-label">Sessions</div>
                     <button
                         className="nav-item"
                         onClick={() => navigate("/sessions")}
                     >
-                        <span className="nav-icon">⊙</span>
+                        <span className="nav-icon"><ShieldCheck size={15} strokeWidth={2} /></span>
                         <span className="nav-label">Sécurité</span>
                     </button>
                 </nav>
@@ -186,19 +191,18 @@ export default function VaultPage() {
                         </div>
                         <span className="user-email">{getSession()?.email}</span>
                         <button
-                            className="icon-btn"
+                            className="icon-btn sidebar-logout-btn"
                             title="Déconnexion"
                             onClick={handleLogout}
-                            style={{ marginLeft: "auto", fontSize: "14px" }}
                         >
-                            ⏻
+                            <LogOut size={14} strokeWidth={2} />
                         </button>
                     </div>
                     <button
                         className="btn-delete-account"
                         onClick={() => { setDeleteAccountInput(""); setShowConfirmDeleteAccount(true); }}
                     >
-                        ⊗ Supprimer le compte
+                        <Trash2 size={13} strokeWidth={2} /> Supprimer le compte
                     </button>
                 </div>
             </aside>
@@ -210,23 +214,23 @@ export default function VaultPage() {
                     <div className="topbar-actions">
                         {saving  && <span className="saving-indicator">Sauvegarde…</span>}
                         {vaultError && !saving && (
-                            <span className="saving-indicator" style={{ color: "#C85050" }}>
-                ⚠ Erreur de sauvegarde
-              </span>
+                            <span className="saving-indicator saving-indicator-danger">
+                                <AlertTriangle size={12} strokeWidth={2} /> Erreur de sauvegarde
+                            </span>
                         )}
                         <button
                             className="btn-primary"
                             onClick={() => { setEditEntry(null); setShowModal(true); }}
                             disabled={saving}
                         >
-                            + Ajouter
+                            <Plus size={15} strokeWidth={2.25} /> Ajouter
                         </button>
                         <button
                             className="icon-btn mobile-logout-btn"
                             title="Déconnexion"
                             onClick={handleLogout}
                         >
-                            ⏻
+                            <LogOut size={16} strokeWidth={2} />
                         </button>
                     </div>
                 </div>
@@ -254,11 +258,11 @@ export default function VaultPage() {
                         className="mobile-back-btn"
                         onClick={() => setSelected(null)}
                     >
-                        ← Retour
+                        <ArrowLeft size={15} strokeWidth={2} /> Retour
                     </button>
                     <div className="detail-header">
                         <div className="detail-icon-wrap">
-                            <div className="detail-icon">{getFavicon(selected)}</div>
+                            <div className={`detail-icon cat-${selected.category}`}>{getInitial(selected)}</div>
                             <div>
                                 <div className="detail-name">{selected.label}</div>
                                 {selected.url && (() => {
@@ -278,7 +282,7 @@ export default function VaultPage() {
                                     onClick={() => copyToClipboard(selected.username, "user")}
                                     title="Copier"
                                 >
-                                    {copied === "user" ? "✓" : "⎘"}
+                                    {copied === "user" ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
                                 </button>
                             </div>
                         </Field>
@@ -296,14 +300,14 @@ export default function VaultPage() {
                                         onClick={() => setShowPassword((v) => !v)}
                                         title={showPassword ? "Masquer" : "Afficher"}
                                     >
-                                        {showPassword ? "◉" : "○"}
+                                        {showPassword ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
                                     </button>
                                     <button
                                         className={`icon-btn ${copied === "pass" ? "copied" : ""}`}
                                         onClick={() => copyToClipboard(selected.password, "pass")}
                                         title="Copier"
                                     >
-                                        {copied === "pass" ? "✓" : "⎘"}
+                                        {copied === "pass" ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
                                     </button>
                                 </div>
                             </div>
@@ -323,7 +327,7 @@ export default function VaultPage() {
                                     >
                                         {selected.url}
                                     </a>
-                                    <button className="icon-btn">↗</button>
+                                    <button className="icon-btn"><ExternalLink size={13} strokeWidth={2} /></button>
                                 </div>
                             </Field>
                         )}
@@ -356,7 +360,7 @@ export default function VaultPage() {
                             onClick={() => { setEditEntry(selected); setShowModal(true); }}
                             disabled={saving}
                         >
-                            ✎ Modifier
+                            <Pencil size={13} strokeWidth={2} /> Modifier
                         </button>
                         <button
                             className="btn-delete"
@@ -364,14 +368,14 @@ export default function VaultPage() {
                             title="Supprimer"
                             disabled={saving}
                         >
-                            ⊗
+                            <Trash2 size={14} strokeWidth={2} />
                         </button>
                     </div>
                 </aside>
             ) : (
                 <aside className="vault-detail vault-detail-empty">
                     <div className="detail-placeholder">
-                        <div className="placeholder-icon">⬡</div>
+                        <Shield className="placeholder-icon" size={30} strokeWidth={1.5} />
                         <p>Sélectionne une entrée</p>
                     </div>
                 </aside>
@@ -409,23 +413,22 @@ export default function VaultPage() {
             {/* ── MODAL CONFIRMATION SUPPRESSION ───────────────── */}
             {showConfirmDelete && selected && (
                 <div className="modal-overlay" onClick={() => setShowConfirmDelete(false)}>
-                    <div className="modal" style={{ maxWidth: "360px" }} onClick={(e) => e.stopPropagation()}>
+                    <div className="modal modal-sm" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
                             <h2>Supprimer cette entrée ?</h2>
-                            <button className="modal-close" onClick={() => setShowConfirmDelete(false)}>✕</button>
+                            <button className="modal-close" onClick={() => setShowConfirmDelete(false)}><X size={15} strokeWidth={2} /></button>
                         </div>
-                        <div style={{ padding: "16px 24px 24px" }}>
-                            <p style={{ fontSize: "13px", color: "#6B7490", marginBottom: "20px" }}>
-                                <strong style={{ color: "#E8E6E0" }}>{selected.label}</strong> sera supprimé définitivement.
+                        <div className="modal-body">
+                            <p className="confirm-text">
+                                <strong>{selected.label}</strong> sera supprimé définitivement.
                                 Cette action est irréversible.
                             </p>
-                            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                            <div className="modal-actions">
                                 <button className="btn-secondary" onClick={() => setShowConfirmDelete(false)}>
                                     Annuler
                                 </button>
                                 <button
-                                    className="btn-delete"
-                                    style={{ padding: "8px 16px" }}
+                                    className="btn-delete btn-delete-solid"
                                     onClick={async () => {
                                         await deleteEntry(selected.id);
                                         setShowConfirmDelete(false);
@@ -442,43 +445,35 @@ export default function VaultPage() {
             {/* ── MODAL CONFIRMATION SUPPRESSION COMPTE ─────────── */}
             {showConfirmDeleteAccount && (
                 <div className="modal-overlay" onClick={() => setShowConfirmDeleteAccount(false)}>
-                    <div className="modal" style={{ maxWidth: "400px" }} onClick={(e) => e.stopPropagation()}>
+                    <div className="modal modal-sm" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h2 style={{ color: "#C85050" }}>⚠ Supprimer le compte</h2>
-                            <button className="modal-close" onClick={() => setShowConfirmDeleteAccount(false)}>✕</button>
+                            <h2 className="modal-title-danger">
+                                <AlertTriangle size={16} strokeWidth={2} /> Supprimer le compte
+                            </h2>
+                            <button className="modal-close" onClick={() => setShowConfirmDeleteAccount(false)}><X size={15} strokeWidth={2} /></button>
                         </div>
-                        <div style={{ padding: "16px 24px 24px" }}>
-                            <p style={{ fontSize: "13px", color: "#6B7490", marginBottom: "8px", lineHeight: "1.6" }}>
-                                Cette action supprime <strong style={{ color: "#E8E6E0" }}>définitivement</strong> votre
+                        <div className="modal-body">
+                            <p className="confirm-text">
+                                Cette action supprime <strong>définitivement</strong> votre
                                 compte et l'intégralité de votre vault. Aucune récupération n'est possible — le serveur
                                 ne conserve aucune copie de vos données en clair.
                             </p>
-                            <p style={{ fontSize: "12px", color: "#4A5068", marginBottom: "16px" }}>
-                                Tapez <strong style={{ color: "#C85050", fontFamily: "JetBrains Mono, monospace" }}>SUPPRIMER</strong> pour confirmer.
+                            <p className="confirm-subtext">
+                                Tapez <strong className="confirm-keyword">SUPPRIMER</strong> pour confirmer.
                             </p>
                             <input
+                                className="confirm-input"
                                 value={deleteAccountInput}
                                 onChange={(e) => setDeleteAccountInput(e.target.value)}
                                 placeholder="SUPPRIMER"
-                                style={{
-                                    width: "100%", background: "#10121A", border: "1px solid #3A1515",
-                                    borderRadius: "6px", padding: "10px 12px", color: "#C85050",
-                                    fontFamily: "JetBrains Mono, monospace", fontSize: "13px",
-                                    outline: "none", boxSizing: "border-box" as const, marginBottom: "16px",
-                                }}
                                 autoFocus
                             />
-                            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                            <div className="modal-actions">
                                 <button className="btn-secondary" onClick={() => setShowConfirmDeleteAccount(false)}>
                                     Annuler
                                 </button>
                                 <button
-                                    className="btn-delete"
-                                    style={{
-                                        padding: "8px 16px",
-                                        opacity: deleteAccountInput === "SUPPRIMER" ? 1 : 0.4,
-                                        cursor:  deleteAccountInput === "SUPPRIMER" ? "pointer" : "not-allowed",
-                                    }}
+                                    className="btn-delete btn-delete-solid"
                                     disabled={deleteAccountInput !== "SUPPRIMER"}
                                     onClick={async () => {
                                         await deleteVault();
@@ -511,7 +506,7 @@ function EntryCard({
     return (
         <div className={`entry-card ${active ? "active" : ""}`} onClick={onClick}>
             <div className={`entry-icon-wrap cat-${entry.category}`}>
-                {getFavicon(entry)}
+                {getInitial(entry)}
             </div>
             <div className="entry-info">
                 <div className="entry-label">{entry.label}</div>
@@ -555,7 +550,7 @@ function StrengthBar({ score, entropy }: { score: number; entropy: number }) {
 function EmptyState({ search }: { search: string }) {
     return (
         <div className="empty-state">
-            <div className="empty-icon">⬡</div>
+            <Shield className="empty-icon" size={30} strokeWidth={1.5} />
             <p>{search ? `Aucun résultat pour "${search}"` : "Aucune entrée dans cette catégorie"}</p>
         </div>
     );
@@ -613,23 +608,26 @@ function EntryModal({
             <div className="modal">
                 <div className="modal-header">
                     <h2>{entry ? "Modifier l'entrée" : "Nouvelle entrée"}</h2>
-                    <button className="modal-close" onClick={onClose}>✕</button>
+                    <button className="modal-close" onClick={onClose}><X size={15} strokeWidth={2} /></button>
                 </div>
 
                 <form className="modal-form" onSubmit={handleSubmit}>
                     <div className="form-row">
                         <label>Catégorie</label>
                         <div className="category-selector">
-                            {(["login", "card", "note"] as const).map((cat) => (
-                                <button
-                                    key={cat}
-                                    type="button"
-                                    className={`cat-btn ${form.category === cat ? "active" : ""}`}
-                                    onClick={() => setForm((f) => ({ ...f, category: cat }))}
-                                >
-                                    {CATEGORY_ICONS[cat]} {CATEGORY_LABELS[cat]}
-                                </button>
-                            ))}
+                            {(["login", "card", "note"] as const).map((cat) => {
+                                const CatIcon = CATEGORY_ICONS[cat];
+                                return (
+                                    <button
+                                        key={cat}
+                                        type="button"
+                                        className={`cat-btn ${form.category === cat ? "active" : ""}`}
+                                        onClick={() => setForm((f) => ({ ...f, category: cat }))}
+                                    >
+                                        <CatIcon size={13} strokeWidth={2} /> {CATEGORY_LABELS[cat]}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
@@ -670,7 +668,7 @@ function EntryModal({
                                 className="password-input"
                             />
                             <button type="button" className="icon-btn" onClick={() => setShowPass((v) => !v)}>
-                                {showPass ? "○" : "◉"}
+                                {showPass ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
                             </button>
                             <button
                                 type="button"
@@ -678,7 +676,7 @@ function EntryModal({
                                 onClick={handleGenerate}
                                 title="Générer un mot de passe fort"
                             >
-                                ⟳
+                                <RefreshCw size={14} strokeWidth={2} />
                             </button>
                         </div>
                         {form.password && (
@@ -736,11 +734,11 @@ function EntryModal({
 // UTILITAIRES
 // ─────────────────────────────────────────────────────────
 
-const CATEGORY_ICONS: Record<Category, string> = {
-    all:   "▦",
-    login: "◉",
-    card:  "▭",
-    note:  "≡",
+const CATEGORY_ICONS: Record<Category, typeof LayoutGrid> = {
+    all:   LayoutGrid,
+    login: KeyRound,
+    card:  CreditCard,
+    note:  StickyNote,
 };
 
 const CATEGORY_LABELS: Record<Category, string> = {
@@ -750,17 +748,8 @@ const CATEGORY_LABELS: Record<Category, string> = {
     note:  "Notes",
 };
 
-function getFavicon(entry: VaultEntryExtended): string {
-    if (entry.favicon) return entry.favicon;
-    const icons: Record<string, string> = {
-        github: "🐙", google: "🟦", netflix: "🎬", figma: "🎨",
-        cloudflare: "☁", hetzner: "🖥", discord: "💬", stripe: "💳",
-        vercel: "▲", railway: "🚂", notion: "◻", slack: "💬",
-    };
-    const key = Object.keys(icons).find((k) =>
-        entry.label.toLowerCase().includes(k)
-    );
-    return key ? icons[key] : "🔑";
+function getInitial(entry: VaultEntryExtended): string {
+    return entry.label.trim().charAt(0).toUpperCase() || "?";
 }
 
 function formatDate(ts: number, short = false): string {

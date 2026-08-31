@@ -1,47 +1,49 @@
 /* ═══════════════════════════════════════════════════════
-   AEGIS — Sessions & Audit Page Styles
-   src/pages/SessionsPage.css
+   AEGIS — Sessions & Audit Page
    ═══════════════════════════════════════════════════════ */
 
 .sp-layout {
     min-height: 100vh;
-    background: #0C0E14;
-    color: #E8E6E0;
-    font-family: 'Syne', sans-serif;
-    padding: 40px;
-    max-width: 860px;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    padding: 48px 40px 64px;
+    max-width: 840px;
     margin: 0 auto;
 }
 
 .sp-header {
-    margin-bottom: 40px;
+    margin-bottom: 36px;
 }
 
 .sp-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     background: none;
     border: none;
-    color: #4A5068;
-    font-family: 'Syne', sans-serif;
+    color: var(--text-muted);
+    font-family: var(--font-ui);
     font-size: 13px;
     cursor: pointer;
     padding: 0;
-    margin-bottom: 20px;
-    display: block;
-    transition: color 0.15s;
+    margin-bottom: 24px;
+    transition: color 0.15s var(--ease);
 }
 
-.sp-back:hover { color: #C9A84C; }
+.sp-back:hover { color: var(--accent); }
 
 .sp-title {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 700;
+    letter-spacing: -0.01em;
     margin: 0 0 8px;
-    color: #E8E6E0;
+    color: var(--text-primary);
 }
 
 .sp-sub {
-    font-size: 13px;
-    color: #4A5068;
+    font-size: 13.5px;
+    color: var(--text-secondary);
     margin: 0;
 }
 
@@ -51,19 +53,20 @@
     align-items: center;
     justify-content: center;
     height: 300px;
-    gap: 12px;
-    color: #4A5068;
+    gap: 14px;
+    color: var(--text-secondary);
+    font-size: 13.5px;
 }
 
-.loading-hex { font-size: 28px; color: #C9A84C; opacity: 0.5; }
+.loading-mark { color: var(--accent); }
 
-.sp-content { display: flex; flex-direction: column; gap: 32px; }
+.sp-content { display: flex; flex-direction: column; gap: 28px; }
 
 /* ── Sections ────────────────────────────────────────────── */
 .sp-section {
-    background: #10121A;
-    border: 1px solid #1E2233;
-    border-radius: 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
     overflow: hidden;
 }
 
@@ -72,21 +75,20 @@
     align-items: center;
     justify-content: space-between;
     padding: 20px 24px 16px;
-    border-bottom: 1px solid #1E2233;
+    border-bottom: 1px solid var(--border);
 }
 
 .section-title {
     font-size: 14px;
     font-weight: 600;
-    color: #E8E6E0;
+    color: var(--text-primary);
     margin: 0 0 3px;
 }
 
 .section-sub {
-    font-size: 11px;
-    color: #4A5068;
+    font-size: 12px;
+    color: var(--text-muted);
     margin: 0;
-    font-family: 'JetBrains Mono', monospace;
 }
 
 /* ── Sessions ────────────────────────────────────────────── */
@@ -95,22 +97,26 @@
 .session-card {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 15px;
     padding: 14px 24px;
-    border-bottom: 1px solid #14161F;
-    transition: background 0.15s;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s var(--ease);
 }
 
 .session-card:last-child { border-bottom: none; }
-.session-card:hover { background: #141620; }
+.session-card:hover { background: var(--bg-elevated); }
 
 .session-card.current {
-    background: #1A1A0E;
-    border-left: 2px solid #C9A84C;
+    background: var(--accent-soft);
+    border-left: 2px solid var(--accent);
     padding-left: 22px;
 }
 
-.session-icon { font-size: 20px; flex-shrink: 0; }
+.session-icon {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    display: flex;
+}
 
 .session-info { flex: 1; min-width: 0; }
 
@@ -118,67 +124,70 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 13px;
-    color: #D8D4CC;
+    font-size: 13.5px;
+    color: var(--text-primary);
     margin-bottom: 4px;
 }
 
 .badge-current {
-    font-size: 10px;
-    background: #2A2310;
-    color: #C9A84C;
-    border: 1px solid #3A3010;
+    font-size: 10.5px;
+    background: rgba(198, 161, 91, 0.16);
+    color: var(--accent-high);
     padding: 2px 8px;
-    border-radius: 4px;
-    font-family: 'JetBrains Mono', monospace;
+    border-radius: 100px;
 }
 
 .session-meta {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
-    color: #4A5068;
-    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-muted);
     flex-wrap: wrap;
 }
 
-.sep { color: #2A2E45; }
+.sep { color: var(--text-faint); }
 
 .btn-revoke {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: none;
-    border: 1px solid #2A2E45;
-    border-radius: 6px;
-    color: #4A5068;
-    font-size: 13px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
     cursor: pointer;
-    padding: 6px 10px;
-    transition: all 0.15s;
+    padding: 7px 9px;
+    transition: border-color 0.15s var(--ease), color 0.15s var(--ease), background 0.15s var(--ease);
     flex-shrink: 0;
 }
 
 .btn-revoke:hover:not(:disabled) {
-    border-color: #3A1515;
-    color: #C85050;
-    background: #2A1010;
+    border-color: rgba(229, 72, 77, 0.3);
+    color: var(--danger);
+    background: var(--danger-soft);
 }
 
 .btn-revoke:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .btn-revoke-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     background: none;
-    border: 1px solid #2A1515;
-    border-radius: 6px;
-    color: #C85050;
-    font-family: 'Syne', sans-serif;
-    font-size: 12px;
+    border: 1px solid rgba(229, 72, 77, 0.25);
+    border-radius: var(--radius-sm);
+    color: var(--danger);
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    font-weight: 500;
     cursor: pointer;
     padding: 7px 14px;
-    transition: background 0.15s;
+    transition: background 0.15s var(--ease);
     white-space: nowrap;
 }
 
-.btn-revoke-all:hover:not(:disabled) { background: #2A1010; }
+.btn-revoke-all:hover:not(:disabled) { background: var(--danger-soft); }
 .btn-revoke-all:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Audit log ───────────────────────────────────────────── */
@@ -187,41 +196,40 @@
 .audit-row {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 15px;
     padding: 12px 24px;
-    border-bottom: 1px solid #14161F;
-    transition: background 0.15s;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s var(--ease);
 }
 
 .audit-row:last-child { border-bottom: none; }
-.audit-row:hover { background: #141620; }
+.audit-row:hover { background: var(--bg-elevated); }
 
 .audit-icon {
     width: 28px;
     height: 28px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
     flex-shrink: 0;
-    font-family: 'JetBrains Mono', monospace;
-    background: #1A1D28;
-    color: #6B7490;
+    background: var(--bg-overlay);
+    color: var(--text-muted);
 }
 
-.audit-icon.action-login_success  { background: #0E2010; color: #70B870; }
-.audit-icon.action-register       { background: #1A1A0E; color: #C9A84C; }
-.audit-icon.action-login_failed   { background: #2A1010; color: #C85050; }
-.audit-icon.action-logout         { background: #10121A; color: #4A5068; }
-.audit-icon.action-vault_write    { background: #0E1E30; color: #5080C0; }
-.audit-icon.action-session_revoked { background: #2A1010; color: #C85050; }
+.audit-icon.action-login_success   { background: var(--success-soft); color: var(--success); }
+.audit-icon.action-register        { background: var(--accent-soft); color: var(--accent-high); }
+.audit-icon.action-login_failed    { background: var(--danger-soft); color: var(--danger); }
+.audit-icon.action-logout          { background: var(--bg-overlay); color: var(--text-muted); }
+.audit-icon.action-vault_write     { background: rgba(94, 140, 224, 0.14); color: #7FA8EE; }
+.audit-icon.action-session_revoked { background: var(--danger-soft); color: var(--danger); }
+.audit-icon.action-password_change_attempt { background: var(--accent-soft); color: var(--accent-high); }
 
 .audit-info { flex: 1; min-width: 0; }
 
 .audit-action {
-    font-size: 13px;
-    color: #D8D4CC;
+    font-size: 13.5px;
+    color: var(--text-primary);
     margin-bottom: 3px;
 }
 
@@ -229,18 +237,17 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
-    color: #4A5068;
-    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-muted);
     flex-wrap: wrap;
 }
 
-.audit-meta-extra { color: #3A4058; }
+.audit-meta-extra { color: var(--text-faint); }
 
 .audit-date {
-    font-size: 11px;
-    color: #3A4058;
-    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-faint);
+    font-family: var(--font-mono);
     white-space: nowrap;
     flex-shrink: 0;
 }
@@ -252,26 +259,31 @@
     justify-content: center;
     gap: 16px;
     padding: 16px 24px;
-    border-top: 1px solid #1E2233;
+    border-top: 1px solid var(--border);
 }
 
 .btn-page {
-    background: #1A1D28;
-    border: 1px solid #2A2E45;
-    border-radius: 6px;
-    color: #8B90A8;
-    font-family: 'Syne', sans-serif;
-    font-size: 12px;
+    background: var(--bg-overlay);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 12.5px;
     cursor: pointer;
     padding: 7px 14px;
-    transition: all 0.15s;
+    transition: border-color 0.15s var(--ease), color 0.15s var(--ease);
 }
 
-.btn-page:hover:not(:disabled) { border-color: #C9A84C; color: #C9A84C; }
+.btn-page:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-high); }
 .btn-page:disabled { opacity: 0.3; cursor: not-allowed; }
 
 .page-info {
-    font-size: 11px;
-    color: #4A5068;
-    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+@media (max-width: 768px) {
+    .sp-layout { padding: 32px 20px 48px; }
+    .session-meta, .audit-meta { font-size: 11px; }
 }

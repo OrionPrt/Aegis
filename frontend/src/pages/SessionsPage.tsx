@@ -7,6 +7,10 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+    ArrowLeft, Shield, Monitor, Smartphone, LogOut, X,
+    CheckCircle2, XCircle, Star, Eye, Pencil, AlertTriangle,
+} from "lucide-react";
 import { apiFetch } from "../lib/auth-client";
 import "./SessionsPage.css";
 
@@ -104,7 +108,7 @@ export default function SessionsPage() {
             {/* ── EN-TÊTE ──────────────────────────────────────── */}
             <div className="sp-header">
                 <button className="sp-back" onClick={() => navigate("/vault")}>
-                    ← Retour au vault
+                    <ArrowLeft size={14} strokeWidth={2} /> Retour au vault
                 </button>
                 <h1 className="sp-title">Sécurité du compte</h1>
                 <p className="sp-sub">Gérez vos appareils connectés et consultez l'historique d'activité.</p>
@@ -112,7 +116,7 @@ export default function SessionsPage() {
 
             {loading ? (
                 <div className="sp-loading">
-                    <span className="loading-hex">⬡</span>
+                    <Shield className="loading-mark" size={26} strokeWidth={1.75} />
                     <p>Chargement…</p>
                 </div>
             ) : (
@@ -131,7 +135,7 @@ export default function SessionsPage() {
                                     onClick={revokeAll}
                                     disabled={revoking === "all"}
                                 >
-                                    {revoking === "all" ? "Révocation…" : "⊗ Tout déconnecter"}
+                                    <LogOut size={13} strokeWidth={2} /> {revoking === "all" ? "Révocation…" : "Tout déconnecter"}
                                 </button>
                             )}
                         </div>
@@ -161,7 +165,7 @@ export default function SessionsPage() {
                                         disabled={revoking === session.id}
                                         title={session.isCurrent ? "Se déconnecter" : "Révoquer cette session"}
                                     >
-                                        {revoking === session.id ? "…" : "⊗"}
+                                        {revoking === session.id ? "…" : <X size={14} strokeWidth={2} />}
                                     </button>
                                 </div>
                             ))}
@@ -178,28 +182,31 @@ export default function SessionsPage() {
                         </div>
 
                         <div className="audit-list">
-                            {auditLogs.map((log) => (
-                                <div key={log.id} className="audit-row">
-                                    <div className={`audit-icon action-${log.action.toLowerCase()}`}>
-                                        {ACTION_ICONS[log.action] ?? "○"}
-                                    </div>
-                                    <div className="audit-info">
-                                        <div className="audit-action">{ACTION_LABELS[log.action] ?? log.action}</div>
-                                        <div className="audit-meta">
-                                            <span>{log.ipAddress ?? "IP inconnue"}</span>
-                                            <span className="sep">·</span>
-                                            <span>{parseUserAgent(log.userAgent)}</span>
-                                            {log.metadata && Object.keys(log.metadata).length > 0 && (
-                                                <>
-                                                    <span className="sep">·</span>
-                                                    <span className="audit-meta-extra">{formatMetadata(log.metadata)}</span>
-                                                </>
-                                            )}
+                            {auditLogs.map((log) => {
+                                const ActionIcon = ACTION_ICONS[log.action] ?? Star;
+                                return (
+                                    <div key={log.id} className="audit-row">
+                                        <div className={`audit-icon action-${log.action.toLowerCase()}`}>
+                                            <ActionIcon size={14} strokeWidth={2} />
                                         </div>
+                                        <div className="audit-info">
+                                            <div className="audit-action">{ACTION_LABELS[log.action] ?? log.action}</div>
+                                            <div className="audit-meta">
+                                                <span>{log.ipAddress ?? "IP inconnue"}</span>
+                                                <span className="sep">·</span>
+                                                <span>{parseUserAgent(log.userAgent)}</span>
+                                                {log.metadata && Object.keys(log.metadata).length > 0 && (
+                                                    <>
+                                                        <span className="sep">·</span>
+                                                        <span className="audit-meta-extra">{formatMetadata(log.metadata)}</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="audit-date">{formatRelative(log.createdAt)}</div>
                                     </div>
-                                    <div className="audit-date">{formatRelative(log.createdAt)}</div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
                         {/* Pagination */}
@@ -210,7 +217,7 @@ export default function SessionsPage() {
                                     disabled={auditOffset === 0}
                                     onClick={() => fetchData(auditOffset - AUDIT_LIMIT)}
                                 >
-                                    ← Précédent
+                                    Précédent
                                 </button>
                                 <span className="page-info">
                   {auditOffset + 1}–{Math.min(auditOffset + AUDIT_LIMIT, auditTotal)} / {auditTotal}
@@ -220,7 +227,7 @@ export default function SessionsPage() {
                                     disabled={auditOffset + AUDIT_LIMIT >= auditTotal}
                                     onClick={() => fetchData(auditOffset + AUDIT_LIMIT)}
                                 >
-                                    Suivant →
+                                    Suivant
                                 </button>
                             </div>
                         )}
@@ -254,11 +261,12 @@ function detectOS(ua: string): string {
     return "Inconnu";
 }
 
-function detectDevice(ua: string | null): string {
-    if (!ua) return "○";
-    if (ua.includes("iPhone") || ua.includes("Android")) return "📱";
-    if (ua.includes("iPad"))  return "📱";
-    return "🖥";
+function detectDevice(ua: string | null) {
+    if (!ua) return <Monitor size={16} strokeWidth={1.75} />;
+    if (ua.includes("iPhone") || ua.includes("Android") || ua.includes("iPad")) {
+        return <Smartphone size={16} strokeWidth={1.75} />;
+    }
+    return <Monitor size={16} strokeWidth={1.75} />;
 }
 
 function formatRelative(dateStr: string): string {
@@ -280,16 +288,16 @@ function formatMetadata(meta: Record<string, unknown>): string {
     return "";
 }
 
-const ACTION_ICONS: Record<string, string> = {
-    LOGIN_SUCCESS:          "✓",
-    LOGIN_FAILED:           "✕",
-    LOGOUT:                 "⏻",
-    REGISTER:               "★",
-    VAULT_READ:             "○",
-    VAULT_WRITE:            "✎",
-    SESSION_REVOKED:        "⊗",
-    ACCOUNT_DELETED:        "⊗",
-    PASSWORD_CHANGE_ATTEMPT:"⚠",
+const ACTION_ICONS: Record<string, typeof Star> = {
+    LOGIN_SUCCESS:          CheckCircle2,
+    LOGIN_FAILED:           XCircle,
+    LOGOUT:                 LogOut,
+    REGISTER:               Star,
+    VAULT_READ:             Eye,
+    VAULT_WRITE:            Pencil,
+    SESSION_REVOKED:        X,
+    ACCOUNT_DELETED:        X,
+    PASSWORD_CHANGE_ATTEMPT:AlertTriangle,
 };
 
 const ACTION_LABELS: Record<string, string> = {

@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Shield, Eye, EyeOff, Loader2, AlertTriangle, KeyRound, Lock, ShieldCheck, Code2 } from "lucide-react";
 import { login, register, AuthError } from "../lib/auth-client";
 import { evaluatePasswordStrength } from "../lib/crypto";
 import "./AuthPage.css";
@@ -109,28 +110,39 @@ export default function AuthPage() {
             {/* ── PANNEAU GAUCHE — Branding ─────────────────────── */}
             <div className="auth-left">
                 <div className="auth-brand">
-                    <span className="brand-hex">⬡</span>
+                    <span className="brand-mark"><Shield size={18} strokeWidth={2} /></span>
                     <div>
-                        <div className="brand-name">AEGIS</div>
-                        <div className="brand-tagline">Password Vault</div>
+                        <div className="brand-name">Aegis</div>
+                        <div className="brand-tagline">Gestionnaire de mots de passe</div>
                     </div>
                 </div>
 
                 <h1 className="auth-headline">
-                    Vos secrets,<br />
-                    <span className="headline-accent">protégés à vie.</span>
+                    Vos mots de passe,<br />en sécurité pour de bon.
                 </h1>
 
                 <p className="auth-sub">
-                    Chiffrement zero-knowledge. Vos mots de passe ne quittent
-                    jamais votre appareil en clair — même Aegis ne peut pas les lire.
+                    Chiffrement zero-knowledge : vos identifiants ne quittent jamais
+                    votre appareil en clair, même Aegis ne peut pas les lire.
                 </p>
 
                 <ul className="auth-pillars">
-                    <li><span className="pillar-dot" />Argon2id · dérivation de clé résistante GPU</li>
-                    <li><span className="pillar-dot" />AES-256-GCM · chiffrement authentifié</li>
-                    <li><span className="pillar-dot" />Zero-knowledge · serveur complètement aveugle</li>
-                    <li><span className="pillar-dot" />Open-source · code auditable</li>
+                    <li>
+                        <span className="pillar-icon"><KeyRound size={15} strokeWidth={2} /></span>
+                        Argon2id — dérivation de clé résistante au brute-force GPU
+                    </li>
+                    <li>
+                        <span className="pillar-icon"><Lock size={15} strokeWidth={2} /></span>
+                        AES-256-GCM — chiffrement authentifié de bout en bout
+                    </li>
+                    <li>
+                        <span className="pillar-icon"><ShieldCheck size={15} strokeWidth={2} /></span>
+                        Zero-knowledge — le serveur ne voit jamais vos données en clair
+                    </li>
+                    <li>
+                        <span className="pillar-icon"><Code2 size={15} strokeWidth={2} /></span>
+                        Open-source — code source public et auditable
+                    </li>
                 </ul>
             </div>
 
@@ -182,6 +194,7 @@ export default function AuthPage() {
                                     onClick={() => setShow((v) => !v)}
                                     tabIndex={-1}
                                 >
+                                    {showPassword ? <EyeOff size={13} strokeWidth={2} /> : <Eye size={13} strokeWidth={2} />}
                                     {showPassword ? "Masquer" : "Afficher"}
                                 </button>
                             </div>
@@ -240,7 +253,7 @@ export default function AuthPage() {
                         {/* Notice Argon2id — pendant le chargement */}
                         {argonStep && (
                             <div className="argon-notice">
-                                <span className="argon-spinner">⟳</span>
+                                <Loader2 size={14} strokeWidth={2} className="argon-spinner" />
                                 <span>{argonStep} (~2s)</span>
                             </div>
                         )}
@@ -248,14 +261,14 @@ export default function AuthPage() {
                         {/* Message d'erreur */}
                         {error && (
                             <div className="auth-error" role="alert">
-                                <span>⚠</span> {error}
+                                <AlertTriangle size={14} strokeWidth={2} /> {error}
                             </div>
                         )}
 
                         {/* Avertissement master password — inscription uniquement */}
                         {mode === "register" && (
                             <div className="master-warning">
-                                <span className="warning-icon">!</span>
+                                <AlertTriangle size={14} strokeWidth={2} className="warning-icon" />
                                 <p>
                                     <strong>Important :</strong> ce mot de passe maître est la seule clé
                                     de votre vault. Il ne peut pas être réinitialisé — notez-le en lieu sûr.
@@ -271,8 +284,8 @@ export default function AuthPage() {
                             {loading
                                 ? argonStep ?? "Chargement…"
                                 : mode === "login"
-                                    ? "Déverrouiller le vault →"
-                                    : "Créer mon vault →"}
+                                    ? "Déverrouiller le vault"
+                                    : "Créer mon vault"}
                         </button>
 
                     </form>
