@@ -1,6 +1,9 @@
 {
   "name": "aegis-monorepo",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "workspaces": [
     "frontend",
     "backend"
@@ -9,8 +12,5 @@
     "build": "npm run build --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend"
-  },
-  "devDependencies": {
-    "@vercel/node": "^5.1.0"
   }
 }
