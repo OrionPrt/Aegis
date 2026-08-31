@@ -129,19 +129,19 @@ export default function AuthPage() {
                 <ul className="auth-pillars">
                     <li>
                         <span className="pillar-icon"><KeyRound size={15} strokeWidth={2} /></span>
-                        Argon2id — dérivation de clé résistante au brute-force GPU
+                        Argon2id - dérivation de clé résistante au brute-force GPU
                     </li>
                     <li>
                         <span className="pillar-icon"><Lock size={15} strokeWidth={2} /></span>
-                        AES-256-GCM — chiffrement authentifié de bout en bout
+                        AES-256-GCM - chiffrement authentifié de bout en bout
                     </li>
                     <li>
                         <span className="pillar-icon"><ShieldCheck size={15} strokeWidth={2} /></span>
-                        Zero-knowledge — le serveur ne voit jamais vos données en clair
+                        Zero-knowledge - le serveur ne voit jamais vos données en clair
                     </li>
                     <li>
                         <span className="pillar-icon"><Code2 size={15} strokeWidth={2} /></span>
-                        Open-source — code source public et auditable
+                        Open-source - code source public et auditable
                     </li>
                 </ul>
             </div>
@@ -271,7 +271,7 @@ export default function AuthPage() {
                                 <AlertTriangle size={14} strokeWidth={2} className="warning-icon" />
                                 <p>
                                     <strong>Important :</strong> ce mot de passe maître est la seule clé
-                                    de votre vault. Il ne peut pas être réinitialisé — notez-le en lieu sûr.
+                                    de votre vault. Il ne peut pas être réinitialisé - notez-le en lieu sûr.
                                 </p>
                             </div>
                         )}

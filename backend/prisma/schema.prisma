@@ -4,10 +4,10 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  // URL "pooled" (Neon: se termine par -pooler dans le hostname) — utilisée
+  // URL "pooled" (Neon: se termine par -pooler dans le hostname) - utilisée
   // à l'exécution par les fonctions serverless, avec ?pgbouncer=true.
   url       = env("DATABASE_URL")
-  // URL directe (sans pooler) — utilisée uniquement par `prisma migrate deploy`.
+  // URL directe (sans pooler) - utilisée uniquement par `prisma migrate deploy`.
   directUrl = env("DIRECT_URL")
 }
 
@@ -34,13 +34,13 @@ model Session {
   userId           String
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  lookupToken      String    @unique  // 16 bytes hex — recherche O(1) par index
-  refreshTokenHash String             // bcrypt(secretToken) — vérification
+  lookupToken      String    @unique  // 16 bytes hex - recherche O(1) par index
+  refreshTokenHash String             // bcrypt(secretToken) - vérification
   userAgent        String?   // "Chrome 124 / macOS"
   ipAddress        String?
   lastUsedAt       DateTime  @default(now())
   createdAt        DateTime  @default(now())
-  expiresAt        DateTime  // TTL explicite — nettoyage facile
+  expiresAt        DateTime  // TTL explicite - nettoyage facile
 
   @@index([userId])
 }

@@ -1,6 +1,6 @@
 /**
  * ╔═══════════════════════════════════════════════════════╗
- * ║         AEGIS — Construction de l'app Fastify         ║
+ * ║         AEGIS - Construction de l'app Fastify         ║
  * ║           src/server/build-app.ts  (Fastify v5)       ║
  * ╚═══════════════════════════════════════════════════════╝
  *

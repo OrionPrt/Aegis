@@ -1,6 +1,6 @@
 /**
  * ╔═══════════════════════════════════════════════════════╗
- * ║         AEGIS — Client Prisma partagé                 ║
+ * ║         AEGIS - Client Prisma partagé                 ║
  * ║         src/server/lib/prisma.ts                      ║
  * ╚═══════════════════════════════════════════════════════╝
  *

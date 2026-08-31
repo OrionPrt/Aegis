@@ -3,7 +3,7 @@
 Le code est prêt. Il te reste des étapes côté "comptes" que je ne peux pas
 faire à ta place (création de comptes, boutons à cliquer dans des dashboards).
 
-## 1. Base de données — Neon
+## 1. Base de données - Neon
 
 1. Crée un compte sur https://neon.tech et un nouveau projet Postgres.
 2. Dans le dashboard Neon, récupère **deux** chaînes de connexion :

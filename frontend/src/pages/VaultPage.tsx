@@ -455,7 +455,7 @@ export default function VaultPage() {
                         <div className="modal-body">
                             <p className="confirm-text">
                                 Cette action supprime <strong>définitivement</strong> votre
-                                compte et l'intégralité de votre vault. Aucune récupération n'est possible — le serveur
+                                compte et l'intégralité de votre vault. Aucune récupération n'est possible - le serveur
                                 ne conserve aucune copie de vos données en clair.
                             </p>
                             <p className="confirm-subtext">

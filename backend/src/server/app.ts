@@ -1,6 +1,6 @@
 /**
  * ╔═══════════════════════════════════════════════════════╗
- * ║         AEGIS — Lancement local (dev / hors Vercel)   ║
+ * ║         AEGIS - Lancement local (dev / hors Vercel)   ║
  * ║           src/server/app.ts                           ║
  * ╚═══════════════════════════════════════════════════════╝
  *

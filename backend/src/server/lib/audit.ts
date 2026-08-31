@@ -1,6 +1,6 @@
 /**
  * ╔═══════════════════════════════════════════════════════╗
- * ║         AEGIS — Audit Log & Sessions                  ║
+ * ║         AEGIS - Audit Log & Sessions                  ║
  * ║         src/server/lib/audit.ts                       ║
  * ╚═══════════════════════════════════════════════════════╝
  */
@@ -69,7 +69,7 @@ function parseRefreshToken(token: string): { lookupToken: string; secretToken: s
 
 /**
  * Enregistre une action dans l'audit log.
- * Ne lève jamais d'exception — l'audit ne doit pas bloquer le flux.
+ * Ne lève jamais d'exception - l'audit ne doit pas bloquer le flux.
  */
 export async function logAudit(
     userId: string,
@@ -88,7 +88,7 @@ export async function logAudit(
             },
         });
     } catch (err) {
-        // Log silencieux — ne jamais faire échouer une requête à cause de l'audit
+        // Log silencieux - ne jamais faire échouer une requête à cause de l'audit
         console.error("[audit] Failed to write log:", err);
     }
 }
@@ -115,7 +115,7 @@ export async function createSession(
         where: { userId, expiresAt: { lt: new Date() } },
     });
 
-    // Limite du nombre de sessions actives — supprime les plus anciennes
+    // Limite du nombre de sessions actives - supprime les plus anciennes
     const sessions = await prisma.session.findMany({
         where:   { userId },
         orderBy: { createdAt: "asc" },
@@ -147,18 +147,18 @@ export async function createSession(
  * Valide un refresh token et retourne la session correspondante.
  * Retourne null si le token est invalide ou expiré.
  *
- * Complexité : O(1) — lookup par index UNIQUE sur lookupToken,
+ * Complexité : O(1) - lookup par index UNIQUE sur lookupToken,
  * puis un seul bcrypt.compare sur la session trouvée.
- * (Avant : O(n) — scan de toutes les sessions actives)
+ * (Avant : O(n) - scan de toutes les sessions actives)
  */
 export async function validateRefreshToken(
     rawToken: string
 ): Promise<{ sessionId: string; userId: string; email: string } | null> {
-    // 1. Parser le token — format : "lookupToken.secretToken"
+    // 1. Parser le token - format : "lookupToken.secretToken"
     const parsed = parseRefreshToken(rawToken);
     if (!parsed) return null;
 
-    // 2. Lookup O(1) via l'index UNIQUE — une seule session candidate
+    // 2. Lookup O(1) via l'index UNIQUE - une seule session candidate
     const session = await prisma.session.findUnique({
         where:   { lookupToken: parsed.lookupToken },
         include: { user: { select: { id: true, email: true } } },

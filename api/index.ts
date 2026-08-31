@@ -1,6 +1,6 @@
 /**
  * ╔═══════════════════════════════════════════════════════╗
- * ║         AEGIS — Fonction serverless Vercel            ║
+ * ║         AEGIS - Fonction serverless Vercel            ║
  * ║              api/index.ts                             ║
  * ╚═══════════════════════════════════════════════════════╝
  *
