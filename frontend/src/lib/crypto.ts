@@ -59,8 +59,8 @@ export interface EncryptedPayload {
 export interface VaultEntry {
     id: string;
     label: string;
-    username: string;
-    password: string;
+    username?: string;
+    password?: string;
     url?: string;
     notes?: string;
     createdAt: number;

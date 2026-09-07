@@ -10,7 +10,15 @@
  * buildApp(), sans jamais appeler .listen().
  */
 
+import { config } from "dotenv";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { buildApp } from "./build-app.js";
+
+// Charge le .env à la racine du monorepo (absent en prod : Vercel injecte
+// les variables d'environnement directement, sans passer par ce fichier).
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+config({ path: path.resolve(__dirname, "../../../.env") });
 
 try {
     const app = await buildApp();

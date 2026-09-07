@@ -5,7 +5,7 @@
  * ╚═══════════════════════════════════════════════════════╝
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     Shield, Search, LayoutGrid, KeyRound, CreditCard, StickyNote,
@@ -13,6 +13,11 @@ import {
     Eye, EyeOff, ExternalLink, Pencil, AlertTriangle, X, ArrowLeft,
 } from "lucide-react";
 import { generatePassword, evaluatePasswordStrength } from "../lib/crypto";
+import {
+    digitsOnly, detectBrand, brandLabel, cvvLength, maxPanLength,
+    formatCardNumber, maskCardNumber, last4, luhn, formatExpiry, checkExpiry,
+} from "../lib/card";
+import type { CardBrand } from "../lib/card";
 import { getSession, logout } from "../lib/auth-client";
 import { useVault } from "../hooks/useVault";
 import type { VaultEntry } from "../lib/crypto";
@@ -26,9 +31,19 @@ type Category = "all" | "login" | "card" | "note";
 
 interface VaultEntryExtended extends VaultEntry {
     category: Category;
-    url?: string;
-    tags?: string[];
+    url?:     string;
+    tags?:    string[];
     favicon?: string;
+
+    // ── Champs carte bancaire ──────────────────────────
+    cardholder?: string;              // Titulaire, tel qu'imprimé, en majuscules
+    cardNumber?: string;              // PAN stocké SANS espaces (chiffres uniquement)
+    cardExpiry?: string;              // 4 chiffres "MMYY", sans slash
+    cardCvv?:    string;              // 3 chiffres, 4 pour Amex
+    cardPin?:    string;              // optionnel, 4 à 6 chiffres
+    cardBank?:   string;              // banque émettrice, texte libre
+    cardBrand?:  CardBrand;           // dérivé à la sauvegarde, mis en cache
+    cardType?:   "credit" | "debit";
 }
 
 // ─────────────────────────────────────────────────────────
@@ -66,9 +81,12 @@ export default function VaultPage() {
             const matchSearch =
                 !q ||
                 e.label.toLowerCase().includes(q) ||
-                e.username.toLowerCase().includes(q) ||
+                e.username?.toLowerCase().includes(q) ||
                 e.url?.toLowerCase().includes(q) ||
-                e.tags?.some((t) => t.toLowerCase().includes(q));
+                e.tags?.some((t) => t.toLowerCase().includes(q)) ||
+                e.cardholder?.toLowerCase().includes(q) ||
+                e.cardBank?.toLowerCase().includes(q) ||
+                last4(e.cardNumber ?? "").includes(q);
             return matchCat && matchSearch;
         });
     }, [typedEntries, category, search]);
@@ -101,7 +119,9 @@ export default function VaultPage() {
         navigate("/login");
     }
 
-    const strengthResult = selected ? evaluatePasswordStrength(selected.password) : null;
+    const strengthResult = selected && selected.category === "login" && selected.password
+        ? evaluatePasswordStrength(selected.password)
+        : null;
 
     // ── État de chargement ─────────────────────────────────
 
@@ -167,7 +187,7 @@ export default function VaultPage() {
 
                     <div className="nav-section-label">Outils</div>
                     <button
-                        className="nav-item"
+                        className="nav-item nav-item-extra"
                         onClick={() => { setEditEntry(null); setShowModal(true); }}
                     >
                         <span className="nav-icon"><RefreshCw size={15} strokeWidth={2} /></span>
@@ -176,7 +196,7 @@ export default function VaultPage() {
 
                     <div className="nav-section-label">Sessions</div>
                     <button
-                        className="nav-item"
+                        className="nav-item nav-item-extra"
                         onClick={() => navigate("/sessions")}
                     >
                         <span className="nav-icon"><ShieldCheck size={15} strokeWidth={2} /></span>
@@ -223,7 +243,21 @@ export default function VaultPage() {
                             onClick={() => { setEditEntry(null); setShowModal(true); }}
                             disabled={saving}
                         >
-                            <Plus size={15} strokeWidth={2.25} /> Ajouter
+                            <Plus size={15} strokeWidth={2.25} /> <span>Ajouter</span>
+                        </button>
+                        <button
+                            className="icon-btn mobile-tool-btn"
+                            title="Générateur"
+                            onClick={() => { setEditEntry(null); setShowModal(true); }}
+                        >
+                            <RefreshCw size={16} strokeWidth={2} />
+                        </button>
+                        <button
+                            className="icon-btn mobile-tool-btn"
+                            title="Sécurité"
+                            onClick={() => navigate("/sessions")}
+                        >
+                            <ShieldCheck size={16} strokeWidth={2} />
                         </button>
                         <button
                             className="icon-btn mobile-logout-btn"
@@ -233,6 +267,15 @@ export default function VaultPage() {
                             <LogOut size={16} strokeWidth={2} />
                         </button>
                     </div>
+                </div>
+
+                <div className="topbar-search-mobile">
+                    <Search className="search-icon" size={14} strokeWidth={2} />
+                    <input
+                        placeholder="Rechercher..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
                 </div>
 
                 <div className="entry-list">
@@ -274,62 +317,75 @@ export default function VaultPage() {
                     </div>
 
                     <div className="detail-body">
-                        <Field label="Identifiant">
-                            <div className="field-value-row">
-                                <span className="field-mono">{selected.username}</span>
-                                <button
-                                    className={`icon-btn ${copied === "user" ? "copied" : ""}`}
-                                    onClick={() => copyToClipboard(selected.username, "user")}
-                                    title="Copier"
-                                >
-                                    {copied === "user" ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
-                                </button>
-                            </div>
-                        </Field>
+                        {selected.category === "login" && (
+                            <>
+                                <Field label="Identifiant">
+                                    <div className="field-value-row">
+                                        <span className="field-mono">{selected.username}</span>
+                                        <button
+                                            className={`icon-btn ${copied === "user" ? "copied" : ""}`}
+                                            onClick={() => copyToClipboard(selected.username ?? "", "user")}
+                                            title="Copier"
+                                        >
+                                            {copied === "user" ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
+                                        </button>
+                                    </div>
+                                </Field>
 
-                        <Field label="Mot de passe">
-                            <div className="field-value-row">
-                <span className={`field-mono ${showPassword ? "password-visible" : "password-hidden"}`}>
-                  {showPassword
-                      ? selected.password
-                      : "•".repeat(Math.min(selected.password.length, 16))}
-                </span>
-                                <div className="icon-btn-group">
-                                    <button
-                                        className="icon-btn"
-                                        onClick={() => setShowPassword((v) => !v)}
-                                        title={showPassword ? "Masquer" : "Afficher"}
-                                    >
-                                        {showPassword ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
-                                    </button>
-                                    <button
-                                        className={`icon-btn ${copied === "pass" ? "copied" : ""}`}
-                                        onClick={() => copyToClipboard(selected.password, "pass")}
-                                        title="Copier"
-                                    >
-                                        {copied === "pass" ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
-                                    </button>
-                                </div>
-                            </div>
-                            {strengthResult && (
-                                <StrengthBar score={strengthResult.score} entropy={strengthResult.entropy} />
-                            )}
-                        </Field>
+                                <Field label="Mot de passe">
+                                    <div className="field-value-row">
+                        <span className={`field-mono ${showPassword ? "password-visible" : "password-hidden"}`}>
+                          {showPassword
+                              ? selected.password
+                              : "•".repeat(Math.min((selected.password ?? "").length, 16))}
+                        </span>
+                                        <div className="icon-btn-group">
+                                            <button
+                                                className="icon-btn"
+                                                onClick={() => setShowPassword((v) => !v)}
+                                                title={showPassword ? "Masquer" : "Afficher"}
+                                            >
+                                                {showPassword ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
+                                            </button>
+                                            <button
+                                                className={`icon-btn ${copied === "pass" ? "copied" : ""}`}
+                                                onClick={() => copyToClipboard(selected.password ?? "", "pass")}
+                                                title="Copier"
+                                            >
+                                                {copied === "pass" ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {strengthResult && (
+                                        <StrengthBar score={strengthResult.score} entropy={strengthResult.entropy} />
+                                    )}
+                                </Field>
 
-                        {selected.url && (
-                            <Field label="URL">
-                                <div className="field-value-row">
-                                    <a
-                                        className="field-link"
-                                        href={selected.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        {selected.url}
-                                    </a>
-                                    <button className="icon-btn"><ExternalLink size={13} strokeWidth={2} /></button>
-                                </div>
-                            </Field>
+                                {selected.url && (
+                                    <Field label="URL">
+                                        <div className="field-value-row">
+                                            <a
+                                                className="field-link"
+                                                href={selected.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                {selected.url}
+                                            </a>
+                                            <button className="icon-btn"><ExternalLink size={13} strokeWidth={2} /></button>
+                                        </div>
+                                    </Field>
+                                )}
+                            </>
+                        )}
+
+                        {selected.category === "card" && (
+                            <CardDetail
+                                key={selected.id}
+                                entry={selected}
+                                copied={copied}
+                                copyToClipboard={copyToClipboard}
+                            />
                         )}
 
                         {selected.notes && (
@@ -510,7 +566,7 @@ function EntryCard({
             </div>
             <div className="entry-info">
                 <div className="entry-label">{entry.label}</div>
-                <div className="entry-username">{entry.username}</div>
+                <div className="entry-username">{entrySubtitle(entry)}</div>
             </div>
             <div className="entry-date">{formatDate(entry.updatedAt, true)}</div>
         </div>
@@ -523,6 +579,127 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
             <div className="field-label">{label}</div>
             <div className="field-content">{children}</div>
         </div>
+    );
+}
+
+function CardDetail({
+                         entry, copied, copyToClipboard,
+                     }: {
+    entry: VaultEntryExtended;
+    copied: string | null;
+    copyToClipboard: (text: string, field: string) => void;
+}) {
+    const [revealed, setRevealed] = useState(false);
+
+    // Re-masquage automatique après 30 secondes
+    useEffect(() => {
+        if (!revealed) return;
+        const timer = setTimeout(() => setRevealed(false), 30_000);
+        return () => clearTimeout(timer);
+    }, [revealed]);
+
+    const pan    = entry.cardNumber ?? "";
+    const brand  = entry.cardBrand ?? detectBrand(pan);
+    const status = checkExpiry(entry.cardExpiry ?? "");
+
+    return (
+        <>
+            <div className={`card-preview card-preview-${brand}`}>
+                <div className="card-preview-top">
+                    <div className="card-chip" />
+                    <span className="card-preview-brand">{brandLabel(brand)}</span>
+                </div>
+                <div className="card-preview-number">{maskCardNumber(pan)}</div>
+                <div className="card-preview-bottom">
+                    <div>
+                        <div className="card-preview-label">Titulaire</div>
+                        <div className="card-preview-value">{entry.cardholder || "-"}</div>
+                    </div>
+                    <div>
+                        <div className="card-preview-label">Expire</div>
+                        <div className="card-preview-value">
+                            {entry.cardExpiry ? formatExpiry(entry.cardExpiry) : "--/--"}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {status === "expired" && (
+                <div className="card-expired-banner">
+                    <AlertTriangle size={13} strokeWidth={2} /> Cette carte a expiré.
+                </div>
+            )}
+
+            <Field label="Numéro de carte">
+                <div className="field-value-row">
+                    <span className="field-mono">
+                        {revealed ? formatCardNumber(pan) : maskCardNumber(pan)}
+                    </span>
+                    <div className="icon-btn-group">
+                        <button
+                            className="icon-btn"
+                            onClick={() => setRevealed((v) => !v)}
+                            title={revealed ? "Masquer" : "Afficher"}
+                        >
+                            {revealed ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
+                        </button>
+                        <button
+                            className={`icon-btn ${copied === "cardNumber" ? "copied" : ""}`}
+                            onClick={() => copyToClipboard(digitsOnly(pan), "cardNumber")}
+                            title="Copier"
+                        >
+                            {copied === "cardNumber" ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
+                        </button>
+                    </div>
+                </div>
+            </Field>
+
+            {entry.cardCvv && (
+                <Field label="Cryptogramme">
+                    <div className="field-value-row">
+                        <span className="field-mono">
+                            {revealed ? entry.cardCvv : "•".repeat(entry.cardCvv.length)}
+                        </span>
+                        <button
+                            className={`icon-btn ${copied === "cvv" ? "copied" : ""}`}
+                            onClick={() => copyToClipboard(entry.cardCvv ?? "", "cvv")}
+                            title="Copier"
+                        >
+                            {copied === "cvv" ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
+                        </button>
+                    </div>
+                </Field>
+            )}
+
+            {entry.cardPin && (
+                <Field label="Code PIN">
+                    <div className="field-value-row">
+                        <span className="field-mono">
+                            {revealed ? entry.cardPin : "•".repeat(entry.cardPin.length)}
+                        </span>
+                        <button
+                            className={`icon-btn ${copied === "pin" ? "copied" : ""}`}
+                            onClick={() => copyToClipboard(entry.cardPin ?? "", "pin")}
+                            title="Copier"
+                        >
+                            {copied === "pin" ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
+                        </button>
+                    </div>
+                </Field>
+            )}
+
+            {entry.cardBank && (
+                <Field label="Banque émettrice">
+                    <span className="field-mono">{entry.cardBank}</span>
+                </Field>
+            )}
+
+            {entry.cardType && (
+                <Field label="Type">
+                    <span className="field-mono">{entry.cardType === "credit" ? "Crédit" : "Débit"}</span>
+                </Field>
+            )}
+        </>
     );
 }
 
@@ -570,19 +747,33 @@ function EntryModal({
     onSave: (data: EntryFormData) => Promise<void>;
 }) {
     const [form, setForm] = useState<EntryFormData>({
-        label:    entry?.label    ?? "",
-        username: entry?.username ?? "",
-        password: entry?.password ?? "",
-        url:      entry?.url      ?? "",
-        notes:    entry?.notes    ?? "",
-        category: entry?.category ?? "login",
-        tags:     entry?.tags     ?? [],
+        label:      entry?.label      ?? "",
+        username:   entry?.username   ?? "",
+        password:   entry?.password   ?? "",
+        url:        entry?.url        ?? "",
+        notes:      entry?.notes      ?? "",
+        category:   entry?.category   ?? "login",
+        tags:       entry?.tags       ?? [],
+        cardholder: entry?.cardholder ?? "",
+        cardNumber: entry?.cardNumber ?? "",
+        cardExpiry: entry?.cardExpiry ?? "",
+        cardCvv:    entry?.cardCvv    ?? "",
+        cardPin:    entry?.cardPin    ?? "",
+        cardBank:   entry?.cardBank   ?? "",
+        cardType:   entry?.cardType   ?? "credit",
     });
-    const [showPass,  setShowPass]  = useState(false);
-    const [saving,    setSaving]    = useState(false);
-    const [tagsInput, setTagsInput] = useState(entry?.tags?.join(", ") ?? "");
+    const [showPass,   setShowPass]   = useState(false);
+    const [showSecret, setShowSecret] = useState(false); // CVV + PIN, œil partagé
+    const [saving,     setSaving]     = useState(false);
+    const [tagsInput,  setTagsInput]  = useState(entry?.tags?.join(", ") ?? "");
+    const [formError,  setFormError]  = useState<string | null>(null);
 
-    const strength = evaluatePasswordStrength(form.password);
+    const strength = form.category === "login" ? evaluatePasswordStrength(form.password ?? "") : null;
+
+    const panDigits    = digitsOnly(form.cardNumber ?? "");
+    const brand        = detectBrand(panDigits);
+    const panInvalid   = panDigits.length >= 12 && !luhn(panDigits);
+    const expiryStatus = checkExpiry(form.cardExpiry ?? "");
 
     function handleGenerate() {
         const pwd = generatePassword({ length: 20, symbols: true });
@@ -590,13 +781,59 @@ function EntryModal({
         setShowPass(true);
     }
 
+    function validate(): string | null {
+        if (!form.label.trim()) return "Le nom est requis.";
+
+        if (form.category === "login") {
+            if (!form.username?.trim()) return "L'identifiant est requis.";
+            if (!form.password)         return "Le mot de passe est requis.";
+        }
+
+        if (form.category === "card") {
+            if (!panDigits)   return "Le numéro de carte est requis.";
+            if (!luhn(panDigits)) return "Numéro de carte invalide.";
+
+            const expiry = digitsOnly(form.cardExpiry ?? "");
+            if (!expiry)             return "La date d'expiration est requise.";
+            if (expiry.length !== 4) return "Date d'expiration invalide (format MM/AA).";
+            const month = Number(expiry.slice(0, 2));
+            if (month < 1 || month > 12) return "Le mois d'expiration doit être compris entre 01 et 12.";
+
+            if (form.cardCvv && form.cardCvv.length !== cvvLength(brand)) {
+                return `Le cryptogramme doit contenir ${cvvLength(brand)} chiffres.`;
+            }
+        }
+
+        if (form.category === "note" && !form.notes?.trim()) return "Le contenu de la note est requis.";
+
+        return null;
+    }
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+        const err = validate();
+        if (err) { setFormError(err); return; }
+        setFormError(null);
         setSaving(true);
+
+        const isLogin = form.category === "login";
+        const isCard  = form.category === "card";
+
         try {
             await onSave({
                 ...form,
-                tags: tagsInput.split(",").map((t) => t.trim()).filter(Boolean),
+                tags:       tagsInput.split(",").map((t) => t.trim()).filter(Boolean),
+                username:   isLogin ? form.username : undefined,
+                password:   isLogin ? form.password : undefined,
+                url:        isLogin ? form.url : undefined,
+                cardholder: isCard ? ((form.cardholder ?? "").trim().toUpperCase() || undefined) : undefined,
+                cardNumber: isCard ? (panDigits || undefined) : undefined,
+                cardExpiry: isCard ? (digitsOnly(form.cardExpiry ?? "") || undefined) : undefined,
+                cardCvv:    isCard ? (form.cardCvv || undefined) : undefined,
+                cardPin:    isCard ? (form.cardPin || undefined) : undefined,
+                cardBank:   isCard ? (form.cardBank || undefined) : undefined,
+                cardBrand:  isCard ? brand : undefined,
+                cardType:   isCard ? form.cardType : undefined,
             });
         } finally {
             setSaving(false);
@@ -635,74 +872,213 @@ function EntryModal({
                         <label htmlFor="modal-label">Nom</label>
                         <input
                             id="modal-label"
-                            required
                             value={form.label}
                             onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
                             placeholder="ex: GitHub"
                         />
                     </div>
 
-                    <div className="form-row">
-                        <label htmlFor="modal-username">Identifiant / Email</label>
-                        <input
-                            id="modal-username"
-                            required
-                            value={form.username}
-                            onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
-                            placeholder="email@exemple.com"
-                            autoComplete="off"
-                        />
-                    </div>
+                    {form.category === "login" && (
+                        <>
+                            <div className="form-row">
+                                <label htmlFor="modal-username">Identifiant / Email</label>
+                                <input
+                                    id="modal-username"
+                                    value={form.username ?? ""}
+                                    onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+                                    placeholder="email@exemple.com"
+                                    autoComplete="off"
+                                />
+                            </div>
+
+                            <div className="form-row">
+                                <label htmlFor="modal-password">Mot de passe</label>
+                                <div className="password-input-wrap">
+                                    <input
+                                        id="modal-password"
+                                        type={showPass ? "text" : "password"}
+                                        value={form.password ?? ""}
+                                        onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                                        placeholder="Mot de passe"
+                                        autoComplete="new-password"
+                                        className="password-input"
+                                    />
+                                    <button type="button" className="icon-btn" onClick={() => setShowPass((v) => !v)}>
+                                        {showPass ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="icon-btn generate-btn"
+                                        onClick={handleGenerate}
+                                        title="Générer un mot de passe fort"
+                                    >
+                                        <RefreshCw size={14} strokeWidth={2} />
+                                    </button>
+                                </div>
+                                {form.password && strength && (
+                                    <StrengthBar score={strength.score} entropy={strength.entropy} />
+                                )}
+                            </div>
+
+                            <div className="form-row">
+                                <label htmlFor="modal-url">URL</label>
+                                <input
+                                    id="modal-url"
+                                    type="url"
+                                    value={form.url ?? ""}
+                                    onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+                                    placeholder="https://..."
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    {form.category === "card" && (
+                        <>
+                            <div className="form-row">
+                                <label htmlFor="modal-cardholder">Titulaire</label>
+                                <input
+                                    id="modal-cardholder"
+                                    className="uppercase-input"
+                                    value={form.cardholder ?? ""}
+                                    onChange={(e) => setForm((f) => ({ ...f, cardholder: e.target.value }))}
+                                    placeholder="JEAN DUPONT"
+                                    autoComplete="off"
+                                    spellCheck={false}
+                                />
+                            </div>
+
+                            <div className="form-row">
+                                <label htmlFor="modal-card-number">Numéro</label>
+                                <div className="card-number-wrap">
+                                    <input
+                                        id="modal-card-number"
+                                        className="card-number-input"
+                                        value={formatCardNumber(form.cardNumber ?? "")}
+                                        onChange={(e) => {
+                                            const b = detectBrand(e.target.value);
+                                            setForm((f) => ({
+                                                ...f,
+                                                cardNumber: digitsOnly(e.target.value).slice(0, maxPanLength(b)),
+                                            }));
+                                        }}
+                                        placeholder="0000 0000 0000 0000"
+                                        inputMode="numeric"
+                                        autoComplete="off"
+                                        spellCheck={false}
+                                    />
+                                    {panDigits.length > 0 && (
+                                        <span className={`card-brand-chip card-brand-chip-${brand}`}>
+                                            {brandLabel(brand)}
+                                        </span>
+                                    )}
+                                </div>
+                                {panInvalid && <div className="field-hint field-hint-danger">Numéro invalide</div>}
+                            </div>
+
+                            <div className="form-row-split">
+                                <div className="form-row">
+                                    <label htmlFor="modal-card-expiry">Expiration</label>
+                                    <input
+                                        id="modal-card-expiry"
+                                        value={formatExpiry(form.cardExpiry ?? "")}
+                                        onChange={(e) => setForm((f) => ({
+                                            ...f, cardExpiry: digitsOnly(e.target.value).slice(0, 4),
+                                        }))}
+                                        placeholder="MM/AA"
+                                        inputMode="numeric"
+                                        autoComplete="off"
+                                    />
+                                    {expiryStatus === "expired" && (
+                                        <div className="field-hint field-hint-danger">Carte expirée</div>
+                                    )}
+                                    {expiryStatus === "soon" && (
+                                        <div className="field-hint field-hint-warn">Expire bientôt</div>
+                                    )}
+                                </div>
+
+                                <div className="form-row">
+                                    <label htmlFor="modal-card-cvv">Cryptogramme</label>
+                                    <div className="password-input-wrap">
+                                        <input
+                                            id="modal-card-cvv"
+                                            type={showSecret ? "text" : "password"}
+                                            value={form.cardCvv ?? ""}
+                                            onChange={(e) => setForm((f) => ({
+                                                ...f, cardCvv: digitsOnly(e.target.value).slice(0, cvvLength(brand)),
+                                            }))}
+                                            placeholder="CVV"
+                                            inputMode="numeric"
+                                            maxLength={cvvLength(brand)}
+                                            autoComplete="off"
+                                        />
+                                        <button type="button" className="icon-btn" onClick={() => setShowSecret((v) => !v)}>
+                                            {showSecret ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="form-row-split">
+                                <div className="form-row">
+                                    <label htmlFor="modal-card-pin">Code PIN</label>
+                                    <div className="password-input-wrap">
+                                        <input
+                                            id="modal-card-pin"
+                                            type={showSecret ? "text" : "password"}
+                                            value={form.cardPin ?? ""}
+                                            onChange={(e) => setForm((f) => ({
+                                                ...f, cardPin: digitsOnly(e.target.value).slice(0, 6),
+                                            }))}
+                                            placeholder="Optionnel"
+                                            inputMode="numeric"
+                                            maxLength={6}
+                                            autoComplete="off"
+                                        />
+                                        <button type="button" className="icon-btn" onClick={() => setShowSecret((v) => !v)}>
+                                            {showSecret ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <label>Type</label>
+                                    <div className="category-selector">
+                                        {(["credit", "debit"] as const).map((t) => (
+                                            <button
+                                                key={t}
+                                                type="button"
+                                                className={`cat-btn ${form.cardType === t ? "active" : ""}`}
+                                                onClick={() => setForm((f) => ({ ...f, cardType: t }))}
+                                            >
+                                                {t === "credit" ? "Crédit" : "Débit"}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="form-row">
+                                <label htmlFor="modal-card-bank">Banque émettrice</label>
+                                <input
+                                    id="modal-card-bank"
+                                    value={form.cardBank ?? ""}
+                                    onChange={(e) => setForm((f) => ({ ...f, cardBank: e.target.value }))}
+                                    placeholder="ex: BNP Paribas"
+                                    autoComplete="off"
+                                />
+                            </div>
+                        </>
+                    )}
 
                     <div className="form-row">
-                        <label htmlFor="modal-password">Mot de passe</label>
-                        <div className="password-input-wrap">
-                            <input
-                                id="modal-password"
-                                required
-                                type={showPass ? "text" : "password"}
-                                value={form.password}
-                                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                                placeholder="Mot de passe"
-                                autoComplete="new-password"
-                                className="password-input"
-                            />
-                            <button type="button" className="icon-btn" onClick={() => setShowPass((v) => !v)}>
-                                {showPass ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
-                            </button>
-                            <button
-                                type="button"
-                                className="icon-btn generate-btn"
-                                onClick={handleGenerate}
-                                title="Générer un mot de passe fort"
-                            >
-                                <RefreshCw size={14} strokeWidth={2} />
-                            </button>
-                        </div>
-                        {form.password && (
-                            <StrengthBar score={strength.score} entropy={strength.entropy} />
-                        )}
-                    </div>
-
-                    <div className="form-row">
-                        <label htmlFor="modal-url">URL</label>
-                        <input
-                            id="modal-url"
-                            type="url"
-                            value={form.url}
-                            onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
-                            placeholder="https://..."
-                        />
-                    </div>
-
-                    <div className="form-row">
-                        <label htmlFor="modal-notes">Notes</label>
+                        <label htmlFor="modal-notes">{form.category === "note" ? "Contenu" : "Notes"}</label>
                         <textarea
                             id="modal-notes"
-                            value={form.notes}
+                            value={form.notes ?? ""}
                             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                            placeholder="Notes optionnelles..."
-                            rows={3}
+                            placeholder={form.category === "note" ? "Écrivez votre note..." : "Notes optionnelles..."}
+                            rows={form.category === "note" ? 8 : 3}
                         />
                     </div>
 
@@ -715,6 +1091,12 @@ function EntryModal({
                             placeholder="dev, perso, pro (séparés par des virgules)"
                         />
                     </div>
+
+                    {formError && (
+                        <div className="auth-error" role="alert">
+                            <AlertTriangle size={14} strokeWidth={2} /> {formError}
+                        </div>
+                    )}
 
                     <div className="modal-actions">
                         <button type="button" className="btn-secondary" onClick={onClose}>
@@ -750,6 +1132,18 @@ const CATEGORY_LABELS: Record<Category, string> = {
 
 function getInitial(entry: VaultEntryExtended): string {
     return entry.label.trim().charAt(0).toUpperCase() || "?";
+}
+
+function entrySubtitle(entry: VaultEntryExtended): string {
+    if (entry.category === "card") {
+        const l4  = last4(entry.cardNumber ?? "");
+        const exp = entry.cardExpiry ? ` · ${formatExpiry(entry.cardExpiry)}` : "";
+        return l4 ? `•••• ${l4}${exp}` : "Carte";
+    }
+    if (entry.category === "note") {
+        return entry.notes?.split("\n")[0].slice(0, 48) || "Note vide";
+    }
+    return entry.username ?? "";
 }
 
 function formatDate(ts: number, short = false): string {
