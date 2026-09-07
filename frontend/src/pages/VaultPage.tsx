@@ -6,10 +6,10 @@
  */
 
 import { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
     Shield, Search, LayoutGrid, KeyRound, CreditCard, StickyNote,
-    RefreshCw, ShieldCheck, LogOut, Trash2, Plus, Copy, Check,
+    RefreshCw, ShieldCheck, ShieldAlert, LogOut, Trash2, Plus, Copy, Check,
     Eye, EyeOff, ExternalLink, Pencil, AlertTriangle, X, ArrowLeft,
 } from "lucide-react";
 import { generatePassword, evaluatePasswordStrength } from "../lib/crypto";
@@ -18,6 +18,10 @@ import {
     formatCardNumber, maskCardNumber, last4, luhn, formatExpiry, checkExpiry,
 } from "../lib/card";
 import type { CardBrand } from "../lib/card";
+import {
+    generateTotpCode, totpTimeRemaining, normalizeSecretInput, isValidTotpSecret,
+} from "../lib/totp";
+import type { TotpAlgorithm } from "../lib/totp";
 import { getSession, logout } from "../lib/auth-client";
 import { useVault } from "../hooks/useVault";
 import type { VaultEntry } from "../lib/crypto";
@@ -29,11 +33,17 @@ import "./VaultPage.css";
 
 type Category = "all" | "login" | "card" | "note";
 
-interface VaultEntryExtended extends VaultEntry {
+export interface VaultEntryExtended extends VaultEntry {
     category: Category;
     url?:     string;
     tags?:    string[];
     favicon?: string;
+
+    // ── Champ 2FA / TOTP (login uniquement) ─────────────
+    totpSecret?:    string;         // base32 normalisé
+    totpAlgorithm?: TotpAlgorithm;  // omis = "SHA-1"
+    totpDigits?:    number;         // omis = 6
+    totpPeriod?:    number;         // omis = 30
 
     // ── Champs carte bancaire ──────────────────────────
     cardholder?: string;              // Titulaire, tel qu'imprimé, en majuscules
@@ -52,6 +62,7 @@ interface VaultEntryExtended extends VaultEntry {
 
 export default function VaultPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
 
     // ── Hook vault — chargement, chiffrement, sauvegarde ───
     const { entries, status, error: vaultError, saveVault, deleteVault } = useVault();
@@ -60,7 +71,9 @@ export default function VaultPage() {
     // ── État local UI ──────────────────────────────────────
     const [selected,     setSelected]     = useState<VaultEntryExtended | null>(null);
     const [category,     setCategory]     = useState<Category>("all");
-    const [search,       setSearch]       = useState("");
+    // Préremplit la recherche si on arrive depuis l'audit de sécurité (?q=...)
+    const [search,       setSearch]       = useState(() => searchParams.get("q") ?? "");
+
     const [showModal,    setShowModal]    = useState(false);
     const [editEntry,    setEditEntry]    = useState<VaultEntryExtended | null>(null);
     const [showPassword, setShowPassword] = useState(false);
@@ -194,6 +207,15 @@ export default function VaultPage() {
                         <span className="nav-label">Générateur</span>
                     </button>
 
+                    <div className="nav-section-label">Audit</div>
+                    <button
+                        className="nav-item nav-item-extra"
+                        onClick={() => navigate("/security")}
+                    >
+                        <span className="nav-icon"><ShieldAlert size={15} strokeWidth={2} /></span>
+                        <span className="nav-label">Analyse du vault</span>
+                    </button>
+
                     <div className="nav-section-label">Sessions</div>
                     <button
                         className="nav-item nav-item-extra"
@@ -251,6 +273,13 @@ export default function VaultPage() {
                             onClick={() => { setEditEntry(null); setShowModal(true); }}
                         >
                             <RefreshCw size={16} strokeWidth={2} />
+                        </button>
+                        <button
+                            className="icon-btn mobile-tool-btn"
+                            title="Analyse du vault"
+                            onClick={() => navigate("/security")}
+                        >
+                            <ShieldAlert size={16} strokeWidth={2} />
                         </button>
                         <button
                             className="icon-btn mobile-tool-btn"
@@ -360,6 +389,15 @@ export default function VaultPage() {
                                         <StrengthBar score={strengthResult.score} entropy={strengthResult.entropy} />
                                     )}
                                 </Field>
+
+                                {selected.totpSecret && (
+                                    <TotpField
+                                        key={selected.id}
+                                        entry={selected}
+                                        copied={copied}
+                                        copyToClipboard={copyToClipboard}
+                                    />
+                                )}
 
                                 {selected.url && (
                                     <Field label="URL">
@@ -566,7 +604,12 @@ function EntryCard({
             </div>
             <div className="entry-info">
                 <div className="entry-label">{entry.label}</div>
-                <div className="entry-username">{entrySubtitle(entry)}</div>
+                <div className="entry-username">
+                    {entrySubtitle(entry)}
+                    {entry.category === "login" && entry.totpSecret && (
+                        <ShieldCheck size={11} strokeWidth={2} className="entry-2fa-badge" />
+                    )}
+                </div>
             </div>
             <div className="entry-date">{formatDate(entry.updatedAt, true)}</div>
         </div>
@@ -579,6 +622,65 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
             <div className="field-label">{label}</div>
             <div className="field-content">{children}</div>
         </div>
+    );
+}
+
+function TotpField({
+                        entry, copied, copyToClipboard,
+                    }: {
+    entry: VaultEntryExtended;
+    copied: string | null;
+    copyToClipboard: (text: string, field: string) => void;
+}) {
+    const [code, setCode] = useState("------");
+    const [remaining, setRemaining] = useState(0);
+
+    const period = entry.totpPeriod ?? 30;
+
+    useEffect(() => {
+        let cancelled = false;
+        const config = {
+            secret:    entry.totpSecret!,
+            algorithm: entry.totpAlgorithm ?? "SHA-1" as const,
+            digits:    entry.totpDigits ?? 6,
+            period,
+        };
+
+        async function tick() {
+            try {
+                const c = await generateTotpCode(config);
+                if (!cancelled) setCode(c);
+            } catch {
+                if (!cancelled) setCode("------");
+            }
+            if (!cancelled) setRemaining(totpTimeRemaining(config));
+        }
+
+        tick();
+        const interval = setInterval(tick, 1000);
+        return () => { cancelled = true; clearInterval(interval); };
+    }, [entry.totpSecret, entry.totpAlgorithm, entry.totpDigits, period]);
+
+    return (
+        <Field label="Code d'authentification (2FA)">
+            <div className="field-value-row">
+                <span className="field-mono totp-code">
+                    {code.match(/.{1,3}/g)?.join(" ") ?? code}
+                </span>
+                <div className="icon-btn-group">
+                    <button
+                        className={`icon-btn ${copied === "totp" ? "copied" : ""}`}
+                        onClick={() => copyToClipboard(code, "totp")}
+                        title="Copier"
+                    >
+                        {copied === "totp" ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
+                    </button>
+                </div>
+            </div>
+            <div className="totp-countdown">
+                <div className="totp-countdown-bar" style={{ width: `${(remaining / period) * 100}%` }} />
+            </div>
+        </Field>
     );
 }
 
@@ -754,6 +856,7 @@ function EntryModal({
         notes:      entry?.notes      ?? "",
         category:   entry?.category   ?? "login",
         tags:       entry?.tags       ?? [],
+        totpSecret: entry?.totpSecret ?? "",
         cardholder: entry?.cardholder ?? "",
         cardNumber: entry?.cardNumber ?? "",
         cardExpiry: entry?.cardExpiry ?? "",
@@ -767,6 +870,7 @@ function EntryModal({
     const [saving,     setSaving]     = useState(false);
     const [tagsInput,  setTagsInput]  = useState(entry?.tags?.join(", ") ?? "");
     const [formError,  setFormError]  = useState<string | null>(null);
+    const [totpInputError, setTotpInputError] = useState<string | null>(null);
 
     const strength = form.category === "login" ? evaluatePasswordStrength(form.password ?? "") : null;
 
@@ -787,6 +891,9 @@ function EntryModal({
         if (form.category === "login") {
             if (!form.username?.trim()) return "L'identifiant est requis.";
             if (!form.password)         return "Le mot de passe est requis.";
+            if (form.totpSecret?.trim() && !isValidTotpSecret(form.totpSecret)) {
+                return "La clé secrète 2FA est invalide.";
+            }
         }
 
         if (form.category === "card") {
@@ -819,13 +926,21 @@ function EntryModal({
         const isLogin = form.category === "login";
         const isCard  = form.category === "card";
 
+        const totpNormalized = isLogin && form.totpSecret?.trim()
+            ? (() => { try { return normalizeSecretInput(form.totpSecret!); } catch { return null; } })()
+            : null;
+
         try {
             await onSave({
                 ...form,
-                tags:       tagsInput.split(",").map((t) => t.trim()).filter(Boolean),
-                username:   isLogin ? form.username : undefined,
-                password:   isLogin ? form.password : undefined,
-                url:        isLogin ? form.url : undefined,
+                tags:          tagsInput.split(",").map((t) => t.trim()).filter(Boolean),
+                username:      isLogin ? form.username : undefined,
+                password:      isLogin ? form.password : undefined,
+                url:           isLogin ? form.url : undefined,
+                totpSecret:    totpNormalized?.secret,
+                totpAlgorithm: totpNormalized?.algorithm,
+                totpDigits:    totpNormalized?.digits,
+                totpPeriod:    totpNormalized?.period,
                 cardholder: isCard ? ((form.cardholder ?? "").trim().toUpperCase() || undefined) : undefined,
                 cardNumber: isCard ? (panDigits || undefined) : undefined,
                 cardExpiry: isCard ? (digitsOnly(form.cardExpiry ?? "") || undefined) : undefined,
@@ -929,6 +1044,37 @@ function EntryModal({
                                     onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
                                     placeholder="https://..."
                                 />
+                            </div>
+
+                            <div className="form-row">
+                                <label htmlFor="modal-totp">Clé secrète 2FA (optionnel)</label>
+                                <input
+                                    id="modal-totp"
+                                    className="totp-secret-input"
+                                    value={form.totpSecret ?? ""}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        setForm((f) => ({ ...f, totpSecret: v }));
+                                        setTotpInputError(v.trim() && !isValidTotpSecret(v) ? "Clé secrète invalide." : null);
+                                    }}
+                                    onBlur={() => {
+                                        if (!form.totpSecret?.trim()) return;
+                                        try {
+                                            const norm = normalizeSecretInput(form.totpSecret);
+                                            setForm((f) => ({ ...f, totpSecret: norm.secret }));
+                                            setTotpInputError(null);
+                                        } catch {
+                                            setTotpInputError("Clé secrète invalide.");
+                                        }
+                                    }}
+                                    placeholder="Collez la clé base32 ou un lien otpauth://..."
+                                    autoComplete="off"
+                                    spellCheck={false}
+                                />
+                                {totpInputError && <div className="field-hint field-hint-danger">{totpInputError}</div>}
+                                {!totpInputError && form.totpSecret?.trim() && (
+                                    <div className="field-hint">2FA activée pour cette entrée.</div>
+                                )}
                             </div>
                         </>
                     )}

@@ -3,6 +3,7 @@ import { isAuthenticated } from "./lib/auth-client";
 import VaultPage from "./pages/VaultPage";
 import AuthPage from "./pages/AuthPage";
 import SessionsPage from "./pages/SessionsPage";
+import SecurityAuditPage from "./pages/SecurityAuditPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return isAuthenticated() ? <>{children}</> : <Navigate to="/login" replace />;
@@ -15,7 +16,7 @@ export default function App() {
           {/* Racine → redirige selon l'état de session */}
           <Route path="/" element={<Navigate to="/vault" replace />} />
 
-          {/* Vault — protégé */}
+          {/* Vault - protégé */}
           <Route
               path="/vault"
               element={
@@ -25,10 +26,20 @@ export default function App() {
               }
           />
 
+          {/* Analyse du vault - protégé */}
+          <Route
+              path="/security"
+              element={
+                <ProtectedRoute>
+                  <SecurityAuditPage />
+                </ProtectedRoute>
+              }
+          />
+
           {/* Login */}
           <Route path="/login" element={<AuthPage />} />
 
-          {/* Sessions — protégé */}
+          {/* Sessions - protégé */}
           <Route
               path="/sessions"
               element={

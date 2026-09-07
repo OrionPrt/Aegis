@@ -185,7 +185,7 @@ export async function validateRefreshToken(
 }
 
 /**
- * Rotation du refresh token — invalide l'ancien et crée un nouveau.
+ * Rotation du refresh token - invalide l'ancien et crée un nouveau.
  * Appelé à chaque rafraîchissement de l'access token.
  */
 export async function rotateRefreshToken(
@@ -223,7 +223,7 @@ export async function revokeAllSessions(userId: string): Promise<void> {
 
 /**
  * Retourne toutes les sessions actives d'un utilisateur
- * (sans les refresh tokens — données de présentation uniquement).
+ * (sans les refresh tokens - données de présentation uniquement).
  */
 export async function getUserSessions(userId: string) {
     return prisma.session.findMany({

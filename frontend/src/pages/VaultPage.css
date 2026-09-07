@@ -380,6 +380,12 @@
     margin-top: 2px;
 }
 
+.entry-2fa-badge {
+    margin-left: 6px;
+    color: var(--success);
+    vertical-align: -1px;
+}
+
 .entry-date {
     font-size: 10.5px;
     color: var(--text-faint);
@@ -816,6 +822,29 @@
 
 .uppercase-input { text-transform: uppercase; }
 
+.totp-secret-input {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+}
+
+.totp-code {
+    letter-spacing: 0.08em;
+}
+
+.totp-countdown {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 8px;
+    overflow: hidden;
+}
+
+.totp-countdown-bar {
+    height: 100%;
+    background: var(--accent);
+    transition: width 1s linear;
+}
+
 .card-number-wrap {
     position: relative;
     display: flex;
@@ -1061,14 +1090,20 @@
 
     .main-topbar {
         padding: 14px 16px;
+        min-width: 0;
     }
 
     .topbar-title {
         font-size: 14.5px;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .topbar-actions {
         gap: 6px;
+        flex-shrink: 0;
     }
 
     .topbar-actions .btn-primary {

@@ -1,6 +1,6 @@
 /**
  * ╔═══════════════════════════════════════════════════════╗
- * ║         AEGIS — Auth routes (avec audit + sessions)   ║
+ * ║         AEGIS - Auth routes (avec audit + sessions)   ║
  * ║         src/server/routes/auth.ts                     ║
  * ╚═══════════════════════════════════════════════════════╝
  */

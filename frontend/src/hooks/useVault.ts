@@ -1,6 +1,6 @@
 /**
  * ╔═══════════════════════════════════════════════════════╗
- * ║         AEGIS — Hook useVault                         ║
+ * ║         AEGIS - Hook useVault                         ║
  * ║         src/hooks/useVault.ts                         ║
  * ╚═══════════════════════════════════════════════════════╝
  *
@@ -59,14 +59,14 @@ export function useVault(): UseVaultReturn {
 
                 if (cancelled) return;
 
-                // Vault vide — nouvel utilisateur
+                // Vault vide - nouvel utilisateur
                 if (!response.vault) {
                     setEntries([]);
                     setStatus("ready");
                     return;
                 }
 
-                // Déchiffrement local — la masterKey ne quitte pas la mémoire
+                // Déchiffrement local - la masterKey ne quitte pas la mémoire
                 const decrypted = await decryptVault(
                     response.vault,
                     session.keys.masterKey

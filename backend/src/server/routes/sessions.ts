@@ -1,6 +1,6 @@
 /**
  * ╔═══════════════════════════════════════════════════════╗
- * ║         AEGIS — Routes Sessions & Audit               ║
+ * ║         AEGIS - Routes Sessions & Audit               ║
  * ║         src/server/routes/sessions.ts                 ║
  * ╚═══════════════════════════════════════════════════════╝
  *
