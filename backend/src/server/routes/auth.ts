@@ -14,6 +14,7 @@ import {
     validateRefreshToken,
     rotateRefreshToken,
     revokeSession,
+    revokeAllSessions,
     logAudit,
 } from "../lib/audit.js";
 
@@ -42,6 +43,22 @@ const RegisterSchema = z.object({
 const LoginSchema = z.object({
     email:      z.string().email().max(254).toLowerCase().trim(),
     authKeyHex: z.string().length(64).regex(/^[0-9a-f]+$/),
+});
+
+const ChangePasswordSchema = z.object({
+    currentAuthKeyHex: z.string().length(64).regex(/^[0-9a-f]+$/),
+    newAuthKeyHex:     z.string().length(64).regex(/^[0-9a-f]+$/),
+    vault: z.object({
+        ciphertext: z
+            .string()
+            .min(1)
+            .max(10 * 1024 * 1024)
+            .regex(/^[A-Za-z0-9+/=]+$/, "ciphertext must be base64"),
+        iv: z
+            .string()
+            .length(16)
+            .regex(/^[A-Za-z0-9+/=]+$/, "iv must be base64"),
+    }),
 });
 
 function cookieOpts(maxAge?: number): CookieOptions {
@@ -170,6 +187,76 @@ export async function authRoutes(app: FastifyInstance) {
             .setCookie("aegis_rt", refreshToken, cookieOpts())
             .send({ accessToken, expiresAt: accessTokenExpiresAt() });
     });
+
+    // ── POST /api/auth/change-password ──────────────────────
+    // Change le mot de passe maître : vérifie l'ancien authKey, remplace
+    // authKeyHash + vault (rechiffré côté client avec la nouvelle clé) en
+    // une seule opération atomique, puis révoque toutes les sessions -
+    // chaque appareil doit se reconnecter avec le nouveau mot de passe.
+
+    app.post(
+        "/change-password",
+        { preHandler: [requireAuth] },
+        async (req: FastifyRequest, reply: FastifyReply) => {
+            const { sub: userId } = req.user as JwtPayload;
+
+            const parsed = ChangePasswordSchema.safeParse(req.body);
+            if (!parsed.success) {
+                return reply.status(400).send({ message: "Données invalides." });
+            }
+
+            const { currentAuthKeyHex, newAuthKeyHex, vault } = parsed.data;
+
+            const user = await prisma.user.findUnique({ where: { id: userId } });
+            if (!user) {
+                return reply.status(404).send({ message: "Utilisateur introuvable." });
+            }
+
+            if (user.lockedUntil && user.lockedUntil > new Date()) {
+                const retryAfter = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 1000);
+                return reply
+                    .status(429)
+                    .header("Retry-After", String(retryAfter))
+                    .send({ message: `Compte bloqué. Réessayez dans ${retryAfter}s.` });
+            }
+
+            const isValid = await bcrypt.compare(currentAuthKeyHex, user.authKeyHash);
+            if (!isValid) {
+                const failedAttempts = user.failedAttempts + 1;
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: {
+                        failedAttempts,
+                        ...(failedAttempts >= MAX_FAILED_ATTEMPTS && {
+                            lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS),
+                        }),
+                    },
+                });
+                await logAudit(userId, "PASSWORD_CHANGE_ATTEMPT", req, { success: false });
+                return reply.status(401).send({ message: "Mot de passe actuel incorrect." });
+            }
+
+            const newAuthKeyHash = await bcrypt.hash(newAuthKeyHex, BCRYPT_ROUNDS);
+
+            await prisma.user.update({
+                where: { id: userId },
+                data: {
+                    authKeyHash:    newAuthKeyHash,
+                    vaultData:      vault.ciphertext,
+                    vaultIv:        vault.iv,
+                    failedAttempts: 0,
+                    lockedUntil:    null,
+                },
+            });
+
+            await revokeAllSessions(userId);
+            await logAudit(userId, "PASSWORD_CHANGE_ATTEMPT", req, { success: true });
+
+            return reply
+                .clearCookie("aegis_rt", cookieOpts(0))
+                .send({ message: "Mot de passe maître changé. Reconnectez-vous." });
+        }
+    );
 
     // ── POST /api/auth/refresh ──────────────────────────────
 

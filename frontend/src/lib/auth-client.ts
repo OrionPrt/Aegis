@@ -22,7 +22,7 @@
  *  5. masterKey reste uniquement en mémoire, jamais persistée
  */
 
-import { deriveKeys, generateSalt, type DerivedKeys } from "./crypto";
+import { deriveKeys, generateSalt, encryptVault, type DerivedKeys, type EncryptedPayload, type VaultEntry } from "./crypto";
 
 // ─────────────────────────────────────────────────────────
 // TYPES
@@ -190,6 +190,81 @@ export async function logout(): Promise<void> {
         // Toujours effacer la session locale, même si le réseau échoue
         clearSession();
     }
+}
+
+// ─────────────────────────────────────────────────────────
+// CHANGEMENT DU MOT DE PASSE MAÎTRE
+// ─────────────────────────────────────────────────────────
+
+export interface ChangePasswordPayload {
+    currentAuthKeyHex: string;
+    newAuthKeyHex:     string;
+    vault:             EncryptedPayload;
+}
+
+/**
+ * Change le mot de passe maître.
+ *
+ * Étapes :
+ *  1. Re-dérive les clés depuis le mot de passe ACTUEL (confirme l'identité)
+ *  2. Dérive les nouvelles clés depuis le NOUVEAU mot de passe (même sel -
+ *     le sel protège contre le précalcul multi-utilisateurs, pas contre la
+ *     réutilisation d'un mot de passe)
+ *  3. Rechiffre le vault en mémoire avec la nouvelle masterKey
+ *  4. Le serveur vérifie l'ancien authKey puis remplace authKeyHash + vault
+ *     en une seule opération, et révoque toutes les sessions actives
+ *  5. Efface la session locale — l'utilisateur doit se reconnecter partout
+ *
+ * @param vaultEntries - Les entrées du vault actuellement en mémoire (déjà
+ *                       déchiffrées), à rechiffrer avec la nouvelle clé
+ */
+export async function changeMasterPassword(
+    currentPassword: string,
+    newPassword: string,
+    vaultEntries: VaultEntry[]
+): Promise<void> {
+    const session = getSession();
+    if (!session) throw new AuthError("Session expirée.", 401);
+    const { email } = session;
+
+    const { saltBase64 } = await apiFetch(
+        `/auth/salt?email=${encodeURIComponent(email)}`
+    ) as SaltResponse;
+
+    const currentKeys = await deriveKeys(currentPassword, email, saltBase64);
+    const newKeys     = await deriveKeys(newPassword, email, saltBase64);
+
+    const vault = await encryptVault(vaultEntries, newKeys.masterKey);
+
+    const payload: ChangePasswordPayload = {
+        currentAuthKeyHex: currentKeys.authKeyHex,
+        newAuthKeyHex:     newKeys.authKeyHex,
+        vault,
+    };
+
+    // Requête dédiée (pas apiFetch) : apiFetch relance automatiquement toute
+    // requête en 401 après un refresh de token, ce qui, ici, enverrait deux
+    // fois le mauvais mot de passe actuel et compterait deux tentatives
+    // échouées côté serveur au lieu d'une.
+    if (Date.now() > session.tokens.expiresAt - 60_000) {
+        await refreshAccessToken();
+    }
+    const response = await fetch(`${API_BASE}/auth/change-password`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            ...(getSession()?.tokens.accessToken
+                ? { Authorization: `Bearer ${getSession()!.tokens.accessToken}` }
+                : {}),
+        },
+        credentials: "include",
+        body: JSON.stringify(payload),
+    });
+    await handleResponse(response);
+
+    // Le serveur a révoqué toutes les sessions - la session locale n'est
+    // plus valable, l'utilisateur doit se reconnecter avec le nouveau mdp.
+    clearSession();
 }
 
 // ─────────────────────────────────────────────────────────
