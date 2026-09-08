@@ -902,7 +902,7 @@ function PasswordGeneratorModal({ onClose }: { onClose: () => void }) {
     const [lowercase,        setLowercase]        = useState(true);
     const [numbers,          setNumbers]          = useState(true);
     const [symbols,          setSymbols]          = useState(true);
-    const [excludeAmbiguous, setExcludeAmbiguous] = useState(true);
+    const [excludeAmbiguous, setExcludeAmbiguous] = useState(false);
     const [nonce,            setNonce]            = useState(0);
     const [copiedPassword,   setCopiedPassword]   = useState<string | null>(null);
 
