@@ -817,6 +817,51 @@
     margin-top: 2px;
 }
 
+/* ── Générateur de mot de passe ──────────────────────────── */
+.generator-output {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+}
+
+.generator-password {
+    font-size: 15px;
+    word-break: break-all;
+}
+
+.generator-range {
+    width: 100%;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.generator-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.generator-toggle {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.generator-toggle input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+}
+
 .field-hint-danger { color: #C85050; }
 .field-hint-warn   { color: #E8803A; }
 

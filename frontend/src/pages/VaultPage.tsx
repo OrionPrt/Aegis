@@ -75,6 +75,7 @@ export default function VaultPage() {
     const [search,       setSearch]       = useState(() => searchParams.get("q") ?? "");
 
     const [showModal,    setShowModal]    = useState(false);
+    const [showGenerator, setShowGenerator] = useState(false);
     const [editEntry,    setEditEntry]    = useState<VaultEntryExtended | null>(null);
     const [showPassword, setShowPassword] = useState(false);
     const [copied,       setCopied]       = useState<string | null>(null);
@@ -201,7 +202,7 @@ export default function VaultPage() {
                     <div className="nav-section-label">Outils</div>
                     <button
                         className="nav-item nav-item-extra"
-                        onClick={() => { setEditEntry(null); setShowModal(true); }}
+                        onClick={() => setShowGenerator(true)}
                     >
                         <span className="nav-icon"><RefreshCw size={15} strokeWidth={2} /></span>
                         <span className="nav-label">Générateur</span>
@@ -270,7 +271,7 @@ export default function VaultPage() {
                         <button
                             className="icon-btn mobile-tool-btn"
                             title="Générateur"
-                            onClick={() => { setEditEntry(null); setShowModal(true); }}
+                            onClick={() => setShowGenerator(true)}
                         >
                             <RefreshCw size={16} strokeWidth={2} />
                         </button>
@@ -502,6 +503,11 @@ export default function VaultPage() {
                         setShowModal(false);
                     }}
                 />
+            )}
+
+            {/* ── MODAL GÉNÉRATEUR DE MOT DE PASSE ──────────────── */}
+            {showGenerator && (
+                <PasswordGeneratorModal onClose={() => setShowGenerator(false)} />
             )}
 
             {/* ── MODAL CONFIRMATION SUPPRESSION ───────────────── */}
@@ -831,6 +837,142 @@ function EmptyState({ search }: { search: string }) {
         <div className="empty-state">
             <Shield className="empty-icon" size={30} strokeWidth={1.5} />
             <p>{search ? `Aucun résultat pour "${search}"` : "Aucune entrée dans cette catégorie"}</p>
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────
+// MODAL GÉNÉRATEUR DE MOT DE PASSE (outil autonome)
+// ─────────────────────────────────────────────────────────
+
+function PasswordGeneratorModal({ onClose }: { onClose: () => void }) {
+    const [length,           setLength]           = useState(20);
+    const [uppercase,        setUppercase]        = useState(true);
+    const [lowercase,        setLowercase]        = useState(true);
+    const [numbers,          setNumbers]          = useState(true);
+    const [symbols,          setSymbols]          = useState(true);
+    const [excludeAmbiguous, setExcludeAmbiguous] = useState(true);
+    const [nonce,            setNonce]            = useState(0);
+    const [copiedPassword,   setCopiedPassword]   = useState<string | null>(null);
+
+    const activeCharsets = [uppercase, lowercase, numbers, symbols].filter(Boolean).length;
+
+    // `nonce` n'est pas lu dans le callback : il force juste une nouvelle valeur au clic sur "Régénérer"
+    const password = useMemo(
+        () => generatePassword({ length, uppercase, lowercase, numbers, symbols, excludeAmbiguous }),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [length, uppercase, lowercase, numbers, symbols, excludeAmbiguous, nonce],
+    );
+    const copied = copiedPassword === password;
+
+    function regenerate() {
+        setNonce((n) => n + 1);
+    }
+
+    async function handleCopy() {
+        await navigator.clipboard.writeText(password);
+        setCopiedPassword(password);
+        setTimeout(() => setCopiedPassword((p) => (p === password ? null : p)), 2000);
+        setTimeout(() => navigator.clipboard.writeText(""), 30_000);
+    }
+
+    function toggleCharset(current: boolean, setter: (v: boolean) => void) {
+        if (current && activeCharsets <= 1) return; // au moins un jeu de caractères actif
+        setter(!current);
+    }
+
+    const strength = evaluatePasswordStrength(password);
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                    <h2>Générateur de mot de passe</h2>
+                    <button className="modal-close" onClick={onClose}><X size={15} strokeWidth={2} /></button>
+                </div>
+                <div className="modal-form">
+                    <div className="generator-output">
+                        <span className="field-mono generator-password">{password}</span>
+                        <div className="icon-btn-group">
+                            <button className="icon-btn" onClick={regenerate} title="Régénérer">
+                                <RefreshCw size={14} strokeWidth={2} />
+                            </button>
+                            <button
+                                className={`icon-btn ${copied ? "copied" : ""}`}
+                                onClick={handleCopy}
+                                title="Copier"
+                            >
+                                {copied ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    <StrengthBar score={strength.score} entropy={strength.entropy} />
+
+                    <div className="form-row">
+                        <label>Longueur - {length} caractères</label>
+                        <input
+                            type="range"
+                            min={8}
+                            max={64}
+                            value={length}
+                            className="generator-range"
+                            onChange={(e) => setLength(Number(e.target.value))}
+                        />
+                    </div>
+
+                    <div className="generator-options">
+                        <label className="generator-toggle">
+                            <input
+                                type="checkbox"
+                                checked={uppercase}
+                                onChange={() => toggleCharset(uppercase, setUppercase)}
+                            />
+                            Majuscules (A-Z)
+                        </label>
+                        <label className="generator-toggle">
+                            <input
+                                type="checkbox"
+                                checked={lowercase}
+                                onChange={() => toggleCharset(lowercase, setLowercase)}
+                            />
+                            Minuscules (a-z)
+                        </label>
+                        <label className="generator-toggle">
+                            <input
+                                type="checkbox"
+                                checked={numbers}
+                                onChange={() => toggleCharset(numbers, setNumbers)}
+                            />
+                            Chiffres (0-9)
+                        </label>
+                        <label className="generator-toggle">
+                            <input
+                                type="checkbox"
+                                checked={symbols}
+                                onChange={() => toggleCharset(symbols, setSymbols)}
+                            />
+                            Symboles (!@#$…)
+                        </label>
+                        <label className="generator-toggle">
+                            <input
+                                type="checkbox"
+                                checked={excludeAmbiguous}
+                                onChange={() => setExcludeAmbiguous((v) => !v)}
+                            />
+                            Exclure les caractères ambigus (0, O, l, 1, I)
+                        </label>
+                    </div>
+
+                    <div className="modal-actions">
+                        <button className="btn-secondary" onClick={onClose}>Fermer</button>
+                        <button className="btn-primary" onClick={handleCopy}>
+                            {copied ? <Check size={15} strokeWidth={2.25} /> : <Copy size={15} strokeWidth={2} />}
+                            <span>{copied ? "Copié" : "Copier"}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
