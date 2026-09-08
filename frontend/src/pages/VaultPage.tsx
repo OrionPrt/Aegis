@@ -10,7 +10,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
     Shield, Search, LayoutGrid, KeyRound, CreditCard, StickyNote,
     RefreshCw, ShieldCheck, ShieldAlert, LogOut, Trash2, Plus, Copy, Check,
-    Eye, EyeOff, ExternalLink, Pencil, AlertTriangle, X, ArrowLeft,
+    Eye, EyeOff, ExternalLink, Pencil, AlertTriangle, X, ArrowLeft, GripVertical,
 } from "lucide-react";
 import { generatePassword, evaluatePasswordStrength } from "../lib/crypto";
 import {
@@ -82,6 +82,8 @@ export default function VaultPage() {
     const [showConfirmDelete,        setShowConfirmDelete]        = useState(false);
     const [showConfirmDeleteAccount, setShowConfirmDeleteAccount] = useState(false);
     const [deleteAccountInput,       setDeleteAccountInput]       = useState("");
+    const [draggedId,   setDraggedId]   = useState<string | null>(null);
+    const [dragOverId,  setDragOverId]  = useState<string | null>(null);
 
     const saving  = status === "saving";
     const loading = status === "loading";
@@ -126,6 +128,21 @@ export default function VaultPage() {
         const updated = typedEntries.filter((e) => e.id !== id);
         await saveVault(updated);
         if (selected?.id === id) setSelected(null);
+    }
+
+    // Réordonne le vault en déplaçant `draggedEntryId` juste avant `targetId`.
+    // L'ordre du tableau est ce qui est persisté (chiffré) via saveVault -
+    // c'est donc lui qui définit l'ordre d'affichage à la prochaine connexion.
+    async function reorderEntries(draggedEntryId: string, targetId: string) {
+        if (draggedEntryId === targetId) return;
+        const list = [...typedEntries];
+        const fromIndex = list.findIndex((e) => e.id === draggedEntryId);
+        if (fromIndex === -1) return;
+        const [moved] = list.splice(fromIndex, 1);
+        const toIndex = list.findIndex((e) => e.id === targetId);
+        if (toIndex === -1) return;
+        list.splice(toIndex, 0, moved);
+        await saveVault(list);
     }
 
     async function handleLogout() {
@@ -318,6 +335,17 @@ export default function VaultPage() {
                                 entry={entry}
                                 active={selected?.id === entry.id}
                                 onClick={() => { setSelected(entry); setShowPassword(false); }}
+                                reorderable={!search}
+                                dragging={draggedId === entry.id}
+                                dragOver={dragOverId === entry.id && draggedId !== entry.id}
+                                onDragStart={() => setDraggedId(entry.id)}
+                                onDragEnter={() => { if (draggedId) setDragOverId(entry.id); }}
+                                onDragEnd={() => { setDraggedId(null); setDragOverId(null); }}
+                                onDrop={() => {
+                                    if (draggedId) reorderEntries(draggedId, entry.id);
+                                    setDraggedId(null);
+                                    setDragOverId(null);
+                                }}
                             />
                         ))
                     )}
@@ -598,13 +626,36 @@ export default function VaultPage() {
 
 function EntryCard({
                        entry, active, onClick,
+                       reorderable, dragging, dragOver,
+                       onDragStart, onDragEnter, onDragEnd, onDrop,
                    }: {
     entry: VaultEntryExtended;
     active: boolean;
     onClick: () => void;
+    reorderable: boolean;
+    dragging: boolean;
+    dragOver: boolean;
+    onDragStart: () => void;
+    onDragEnter: () => void;
+    onDragEnd: () => void;
+    onDrop: () => void;
 }) {
     return (
-        <div className={`entry-card ${active ? "active" : ""}`} onClick={onClick}>
+        <div
+            className={`entry-card ${active ? "active" : ""} ${dragging ? "dragging" : ""} ${dragOver ? "drag-over" : ""}`}
+            onClick={onClick}
+            draggable={reorderable}
+            onDragStart={onDragStart}
+            onDragEnter={onDragEnter}
+            onDragOver={(e) => e.preventDefault()}
+            onDragEnd={onDragEnd}
+            onDrop={(e) => { e.preventDefault(); onDrop(); }}
+        >
+            {reorderable && (
+                <span className="entry-drag-handle" title="Glisser pour réordonner">
+                    <GripVertical size={14} strokeWidth={2} />
+                </span>
+            )}
             <div className={`entry-icon-wrap cat-${entry.category}`}>
                 {getInitial(entry)}
             </div>

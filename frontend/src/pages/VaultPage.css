@@ -343,6 +343,27 @@
     background: var(--accent-soft);
 }
 
+.entry-card.dragging { opacity: 0.4; }
+
+.entry-card.drag-over {
+    border-color: var(--accent);
+    box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.entry-drag-handle {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    color: var(--text-faint);
+    cursor: grab;
+    opacity: 0;
+    transition: opacity 0.15s var(--ease);
+    margin-left: -4px;
+}
+
+.entry-card:hover .entry-drag-handle { opacity: 1; }
+.entry-card.dragging .entry-drag-handle { cursor: grabbing; }
+
 .entry-icon-wrap {
     width: 36px;
     height: 36px;
