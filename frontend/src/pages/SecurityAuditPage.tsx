@@ -9,14 +9,15 @@
  * ce que l'utilisateur a déjà sous les yeux dans son vault.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-    ArrowLeft, Shield, ShieldOff, AlertTriangle, Copy, Clock, CreditCard,
+    ArrowLeft, Shield, ShieldOff, AlertTriangle, Copy, Clock, CreditCard, Flame,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { evaluatePasswordStrength } from "../lib/crypto";
 import { checkExpiry } from "../lib/card";
+import { checkPasswordPwned } from "../lib/pwned";
 import { useVault } from "../hooks/useVault";
 import type { VaultEntryExtended } from "./VaultPage";
 import "./SecurityAuditPage.css";
@@ -100,12 +101,49 @@ function computeAudit(entries: VaultEntryExtended[]): AuditReport {
 // COMPOSANT PRINCIPAL
 // ─────────────────────────────────────────────────────────
 
+type PwnedStatus = "idle" | "checking" | "done" | "error";
+
 export default function SecurityAuditPage() {
     const navigate = useNavigate();
     const { entries, status } = useVault();
     const typedEntries = entries as VaultEntryExtended[];
 
     const report = useMemo(() => computeAudit(typedEntries), [typedEntries]);
+
+    // ── Vérification des fuites (opt-in, appel réseau vers HIBP) ────
+    const [pwnedStatus, setPwnedStatus] = useState<PwnedStatus>("idle");
+    const [pwnedResults, setPwnedResults] = useState<Map<string, number>>(new Map());
+
+    const uniqueLoginPasswords = useMemo(
+        () => [...new Set(
+            typedEntries.filter((e) => e.category === "login" && e.password).map((e) => e.password!)
+        )],
+        [typedEntries]
+    );
+
+    const leaked: Finding[] = useMemo(() => {
+        if (pwnedStatus !== "done") return [];
+        return typedEntries
+            .filter((e) => e.category === "login" && e.password && (pwnedResults.get(e.password) ?? 0) > 0)
+            .map((e) => ({
+                id: e.id, label: e.label,
+                reason: `Vu ${pwnedResults.get(e.password!)!.toLocaleString("fr-FR")} fois dans des fuites de données`,
+            }));
+    }, [typedEntries, pwnedResults, pwnedStatus]);
+
+    async function runPwnedCheck() {
+        setPwnedStatus("checking");
+        try {
+            const results = new Map<string, number>();
+            for (const pwd of uniqueLoginPasswords) {
+                results.set(pwd, await checkPasswordPwned(pwd));
+            }
+            setPwnedResults(results);
+            setPwnedStatus("done");
+        } catch {
+            setPwnedStatus("error");
+        }
+    }
 
     function goToEntry(label: string) {
         navigate(`/vault?q=${encodeURIComponent(label)}`);
@@ -126,7 +164,8 @@ export default function SecurityAuditPage() {
                 </button>
                 <h1 className="sp-title">Analyse du vault</h1>
                 <p className="sp-sub">
-                    Une analyse purement locale de vos entrées - rien n'est envoyé, ni comparé à une base externe.
+                    Une analyse locale de vos entrées - rien n'est envoyé, sauf si vous activez la
+                    vérification des fuites ci-dessous, qui interroge Have I Been Pwned.
                 </p>
             </div>
 
@@ -152,7 +191,51 @@ export default function SecurityAuditPage() {
                             <SummaryChip icon={Clock} count={report.stale.length} label="entrée(s) ancienne(s)" severity="warn" onClick={() => scrollToSection("section-stale")} />
                             <SummaryChip icon={CreditCard} count={report.expired.length + report.soon.length} label="carte(s) à vérifier" severity="warn" onClick={() => scrollToSection("section-cards")} />
                             <SummaryChip icon={ShieldOff} count={report.no2fa.length} label="connexion(s) sans 2FA" severity="warn" onClick={() => scrollToSection("section-2fa")} />
+                            <SummaryChip icon={Flame} count={leaked.length} label="mot(s) de passe compromis" severity="danger" onClick={() => scrollToSection("section-leaked")} />
                         </div>
+                    </section>
+
+                    <section className="sp-section" id="section-leaked">
+                        <div className="section-header">
+                            <div>
+                                <h2 className="section-title">Mots de passe compromis</h2>
+                                <p className="section-sub">
+                                    Vérifie si vos mots de passe sont déjà apparus dans des fuites de données
+                                    connues (API Have I Been Pwned, méthode k-anonymat : seuls 5 caractères
+                                    d'un hash sont envoyés, jamais votre mot de passe).
+                                </p>
+                            </div>
+                            {pwnedStatus !== "checking" && uniqueLoginPasswords.length > 0 && (
+                                <button className="pwned-check-btn" onClick={runPwnedCheck}>
+                                    {pwnedStatus === "idle" ? "Vérifier" : "Revérifier"}
+                                </button>
+                            )}
+                        </div>
+                        {uniqueLoginPasswords.length === 0 ? (
+                            <p className="empty-finding">Aucun mot de passe à vérifier.</p>
+                        ) : pwnedStatus === "idle" ? (
+                            <p className="empty-finding">Vérification non lancée - cliquez sur "Vérifier".</p>
+                        ) : pwnedStatus === "checking" ? (
+                            <p className="empty-finding">Vérification en cours…</p>
+                        ) : pwnedStatus === "error" ? (
+                            <p className="empty-finding">Vérification indisponible (hors ligne ou API injoignable). Réessayez plus tard.</p>
+                        ) : leaked.length === 0 ? (
+                            <p className="empty-finding">Aucun mot de passe compromis détecté.</p>
+                        ) : (
+                            <div className="finding-list">
+                                {leaked.map((f, i) => (
+                                    <div key={`${f.id}-${i}`} className="finding-row" onClick={() => goToEntry(f.label)}>
+                                        <div className="finding-icon severity-danger">
+                                            <Flame size={14} strokeWidth={2} />
+                                        </div>
+                                        <div className="finding-info">
+                                            <div className="finding-label">{f.label}</div>
+                                            <div className="finding-reason">{f.reason}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </section>
 
                     <FindingSection
