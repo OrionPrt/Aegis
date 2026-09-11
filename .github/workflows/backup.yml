@@ -17,7 +17,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+        # pg_dump refuse de sauvegarder un serveur plus récent que lui-même -
+        # le client par défaut d'Ubuntu (16) est trop ancien pour Neon (Postgres
+        # 18+). Le paquet "postgresql-client" (sans numéro de version) du dépôt
+        # officiel PGDG pointe toujours vers la dernière version stable, donc
+        # ça reste à jour tout seul aux prochaines montées de version de Neon.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client
 
       - name: Dump database
         env:
