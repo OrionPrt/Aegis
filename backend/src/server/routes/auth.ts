@@ -19,7 +19,7 @@ import {
     getIp,
     getUserAgent,
 } from "../lib/audit.js";
-import { sendPasswordChangedEmail, sendNewIpLoginEmail } from "../lib/email.js";
+import { sendPasswordChangedEmail, sendNewIpLoginEmail, sendAccountLockedEmail } from "../lib/email.js";
 
 interface JwtPayload { sub: string; email: string; }
 
@@ -33,7 +33,7 @@ interface CookieOptions {
 
 const BCRYPT_ROUNDS       = 12;
 const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;
-const MAX_FAILED_ATTEMPTS = 5;
+const MAX_FAILED_ATTEMPTS = 3;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 const DUMMY_SALT          = process.env.AEGIS_DUMMY_SALT ?? "dummy_salt_replace_with_env";
 
@@ -161,16 +161,20 @@ export async function authRoutes(app: FastifyInstance) {
         if (!user || !isValid) {
             if (user) {
                 const failedAttempts = user.failedAttempts + 1;
+                const justLocked     = failedAttempts >= MAX_FAILED_ATTEMPTS;
                 await prisma.user.update({
                     where: { id: user.id },
                     data: {
                         failedAttempts,
-                        ...(failedAttempts >= MAX_FAILED_ATTEMPTS && {
+                        ...(justLocked && {
                             lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS),
                         }),
                     },
                 });
                 await logAudit(user.id, "LOGIN_FAILED", req, { failedAttempts });
+                if (justLocked) {
+                    await sendAccountLockedEmail(user.email, { ipAddress: getIp(req), userAgent: getUserAgent(req) });
+                }
             }
             return reply.status(401).send({ message: "Identifiants incorrects." });
         }
@@ -246,16 +250,20 @@ export async function authRoutes(app: FastifyInstance) {
             const isValid = await bcrypt.compare(currentAuthKeyHex, user.authKeyHash);
             if (!isValid) {
                 const failedAttempts = user.failedAttempts + 1;
+                const justLocked     = failedAttempts >= MAX_FAILED_ATTEMPTS;
                 await prisma.user.update({
                     where: { id: userId },
                     data: {
                         failedAttempts,
-                        ...(failedAttempts >= MAX_FAILED_ATTEMPTS && {
+                        ...(justLocked && {
                             lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS),
                         }),
                     },
                 });
                 await logAudit(userId, "PASSWORD_CHANGE_ATTEMPT", req, { success: false });
+                if (justLocked) {
+                    await sendAccountLockedEmail(user.email, { ipAddress: getIp(req), userAgent: getUserAgent(req) });
+                }
                 return reply.status(401).send({ message: "Mot de passe actuel incorrect." });
             }
 

@@ -101,6 +101,23 @@ export async function sendPasswordChangedEmail(to: string, ctx: EmailEventContex
     );
 }
 
+export async function sendAccountLockedEmail(to: string, ctx: EmailEventContext): Promise<void> {
+    await sendEmail(
+        to,
+        "Votre compte Aegis a été temporairement bloqué",
+        layout("Compte temporairement bloqué", `
+            <p>Votre compte Aegis vient d'être bloqué pendant 15 minutes suite à plusieurs
+            tentatives de connexion infructueuses d'affilée.</p>
+            ${eventDetailsHtml(ctx)}
+            <p style="color: #b02a2a;"><strong>Ce n'était pas vous ?</strong> Quelqu'un tente
+            peut-être de deviner votre mot de passe maître. Vos données restent protégées tant
+            que ce mot de passe n'est pas compromis (dérivation Argon2id, chiffrement
+            AES-256-GCM) - mais par précaution, envisagez de le changer dès que vous
+            récupérez l'accès à votre compte.</p>
+        `)
+    );
+}
+
 export async function sendNewIpLoginEmail(to: string, ctx: EmailEventContext): Promise<void> {
     await sendEmail(
         to,
