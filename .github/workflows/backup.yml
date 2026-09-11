@@ -1,0 +1,50 @@
+name: Database Backup
+
+# Sauvegarde quotidienne de la base Postgres (reprise après incident : mauvaise
+# migration, panne Neon... ) vers un dépôt privé dédié, séparé de Neon.
+# Le contenu sensible du vault est déjà chiffré côté client (AES-256-GCM) avant
+# d'arriver en base - ce dump n'est donc pas une nouvelle surface de risque pour
+# le contenu des vaults, mais il contient des emails et adresses IP en clair
+# (AuditLog), d'où le chiffrement du fichier avant de le pousser.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"  # tous les jours à 3h00 UTC
+  workflow_dispatch: {}   # déclenchement manuel depuis l'onglet Actions
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Dump database
+        env:
+          DATABASE_DIRECT_URL: ${{ secrets.DATABASE_DIRECT_URL }}
+        run: pg_dump "$DATABASE_DIRECT_URL" --format=custom --no-owner --no-privileges -f backup.dump
+
+      - name: Encrypt dump
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          gpg --batch --yes --symmetric --cipher-algo AES256 \
+              --passphrase "$BACKUP_ENCRYPTION_KEY" \
+              -o backup.dump.gpg backup.dump
+          rm backup.dump
+
+      - name: Push to backup repository
+        env:
+          BACKUP_REPO_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+          BACKUP_REPO: OrionPrt/aegis-backups
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
+          git clone "https://x-access-token:${BACKUP_REPO_TOKEN}@github.com/${BACKUP_REPO}.git" backup-repo
+          mkdir -p backup-repo/backups
+          mv backup.dump.gpg "backup-repo/backups/${TIMESTAMP}.dump.gpg"
+          cd backup-repo
+          git config user.name "aegis-backup-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add "backups/${TIMESTAMP}.dump.gpg"
+          git commit -m "backup: ${TIMESTAMP}"
+          git push
