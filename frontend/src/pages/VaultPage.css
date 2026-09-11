@@ -982,6 +982,7 @@
 .card-preview {
     position: relative;
     width: 100%;
+    flex-shrink: 0;
     aspect-ratio: 1.586;
     border-radius: var(--radius-md);
     padding: 18px 20px;
