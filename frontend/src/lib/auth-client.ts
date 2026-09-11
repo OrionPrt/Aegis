@@ -316,8 +316,10 @@ export async function apiFetch(
         await refreshAccessToken();
     }
 
+    // Content-Type uniquement si un corps est envoyé - Fastify rejette
+    // (FST_ERR_CTP_EMPTY_JSON_BODY) une requête sans corps avec ce header.
     const headers: Record<string, string> = {
-        "Content-Type": "application/json",
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
         ...(options.headers as Record<string, string>),
     };
 

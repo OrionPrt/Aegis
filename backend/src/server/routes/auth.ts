@@ -16,7 +16,10 @@ import {
     revokeSession,
     revokeAllSessions,
     logAudit,
+    getIp,
+    getUserAgent,
 } from "../lib/audit.js";
+import { sendPasswordChangedEmail, sendNewIpLoginEmail } from "../lib/email.js";
 
 interface JwtPayload { sub: string; email: string; }
 
@@ -178,10 +181,30 @@ export async function authRoutes(app: FastifyInstance) {
             data:  { failedAttempts: 0, lockedUntil: null },
         });
 
+        // Détection "nouvelle IP" - avant d'enregistrer CE login, pour savoir
+        // s'il y a déjà eu une connexion réussie depuis cette IP auparavant.
+        // Aucune notification sur le tout premier login (juste après inscription).
+        const ip               = getIp(req);
+        const priorLoginCount  = await prisma.auditLog.count({
+            where: { userId: user.id, action: "LOGIN_SUCCESS" },
+        });
+        let seenThisIpBefore = false;
+        if (priorLoginCount > 0) {
+            const match = await prisma.auditLog.findFirst({
+                where:  { userId: user.id, action: "LOGIN_SUCCESS", ipAddress: ip },
+                select: { id: true },
+            });
+            seenThisIpBefore = !!match;
+        }
+
         const accessToken  = await reply.jwtSign({ sub: user.id, email }, { expiresIn: "15m" });
         const refreshToken = await createSession(user.id, req);
 
         await logAudit(user.id, "LOGIN_SUCCESS", req);
+
+        if (priorLoginCount > 0 && !seenThisIpBefore) {
+            await sendNewIpLoginEmail(user.email, { ipAddress: ip, userAgent: getUserAgent(req) });
+        }
 
         return reply
             .setCookie("aegis_rt", refreshToken, cookieOpts())
@@ -251,6 +274,7 @@ export async function authRoutes(app: FastifyInstance) {
 
             await revokeAllSessions(userId);
             await logAudit(userId, "PASSWORD_CHANGE_ATTEMPT", req, { success: true });
+            await sendPasswordChangedEmail(user.email, { ipAddress: getIp(req), userAgent: getUserAgent(req) });
 
             return reply
                 .clearCookie("aegis_rt", cookieOpts(0))
