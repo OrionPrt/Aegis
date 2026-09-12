@@ -30,9 +30,14 @@ jobs:
           sudo apt-get install -y postgresql-client-18
 
       - name: Dump database
+        # Chemin explicite plutôt que la commande "pg_dump" nue : sur les
+        # runners GitHub, /usr/bin/pg_dump continue de pointer vers la version
+        # 16 déjà présente sur l'image même après avoir installé la 18 à côté
+        # (contrairement à une image Ubuntu propre) - le binaire versionné, lui,
+        # est garanti d'exister à ce chemin une fois postgresql-client-18 installé.
         env:
           DATABASE_DIRECT_URL: ${{ secrets.DATABASE_DIRECT_URL }}
-        run: pg_dump "$DATABASE_DIRECT_URL" --format=custom --no-owner --no-privileges -f backup.dump
+        run: /usr/lib/postgresql/18/bin/pg_dump "$DATABASE_DIRECT_URL" --format=custom --no-owner --no-privileges -f backup.dump
 
       - name: Encrypt dump
         env:
