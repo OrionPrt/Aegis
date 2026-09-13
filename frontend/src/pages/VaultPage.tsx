@@ -540,6 +540,7 @@ export default function VaultPage() {
             {showModal && (
                 <EntryModal
                     entry={editEntry}
+                    defaultCategory={category === "card" ? "card" : category === "note" ? "note" : "login"}
                     onClose={() => setShowModal(false)}
                     onSave={async (data) => {
                         const now = Date.now();
@@ -1199,9 +1200,10 @@ function PasswordGeneratorModal({ onClose }: { onClose: () => void }) {
 type EntryFormData = Omit<VaultEntryExtended, "id" | "createdAt" | "updatedAt">;
 
 function EntryModal({
-                        entry, onClose, onSave,
+                        entry, defaultCategory, onClose, onSave,
                     }: {
     entry: VaultEntryExtended | null;
+    defaultCategory: "login" | "card" | "note";
     onClose: () => void;
     onSave: (data: EntryFormData) => Promise<void>;
 }) {
@@ -1211,7 +1213,7 @@ function EntryModal({
         password:   entry?.password   ?? "",
         url:        entry?.url        ?? "",
         notes:      entry?.notes      ?? "",
-        category:   entry?.category   ?? "login",
+        category:   entry?.category   ?? defaultCategory,
         tags:       entry?.tags       ?? [],
         totpSecret: entry?.totpSecret ?? "",
         cardholder: entry?.cardholder ?? "",
