@@ -78,6 +78,7 @@ export default function VaultPage() {
     const [showGenerator, setShowGenerator] = useState(false);
     const [editEntry,    setEditEntry]    = useState<VaultEntryExtended | null>(null);
     const [showPassword, setShowPassword] = useState(false);
+    const [showNotes,    setShowNotes]    = useState(false);
     const [copied,       setCopied]       = useState<string | null>(null);
     const [showConfirmDelete,        setShowConfirmDelete]        = useState(false);
     const [showConfirmDeleteAccount, setShowConfirmDeleteAccount] = useState(false);
@@ -341,7 +342,7 @@ export default function VaultPage() {
                                 key={entry.id}
                                 entry={entry}
                                 active={selected?.id === entry.id}
-                                onClick={() => { setSelected(entry); setShowPassword(false); }}
+                                onClick={() => { setSelected(entry); setShowPassword(false); setShowNotes(false); }}
                                 reorderable={!search}
                                 dragging={draggedId === entry.id}
                                 dragOver={dragOverId === entry.id && draggedId !== entry.id}
@@ -464,7 +465,31 @@ export default function VaultPage() {
 
                         {selected.notes && (
                             <Field label="Notes">
-                                <p className="field-notes">{selected.notes}</p>
+                                <div className="field-notes-row">
+                                    <div className="field-notes-box">
+                                        {showNotes ? (
+                                            <p className="field-notes">{selected.notes}</p>
+                                        ) : (
+                                            <p className="field-notes field-notes-hidden">Contenu masqué</p>
+                                        )}
+                                    </div>
+                                    <div className="icon-btn-group field-notes-actions">
+                                        <button
+                                            className="icon-btn"
+                                            onClick={() => setShowNotes((v) => !v)}
+                                            title={showNotes ? "Masquer" : "Afficher"}
+                                        >
+                                            {showNotes ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
+                                        </button>
+                                        <button
+                                            className={`icon-btn ${copied === "notes" ? "copied" : ""}`}
+                                            onClick={() => copyToClipboard(selected.notes ?? "", "notes")}
+                                            title="Copier"
+                                        >
+                                            {copied === "notes" ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
+                                        </button>
+                                    </div>
+                                </div>
                             </Field>
                         )}
 

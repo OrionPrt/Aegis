@@ -548,6 +548,33 @@
     white-space: pre-wrap;
 }
 
+.field-notes-hidden {
+    color: var(--text-faint);
+    font-style: italic;
+}
+
+.field-notes-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.field-notes-box {
+    flex: 1;
+    min-width: 0;
+    max-height: 160px;
+    overflow-y: auto;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+}
+
+.field-notes-actions {
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
 .tag-list {
     display: flex;
     flex-wrap: wrap;
