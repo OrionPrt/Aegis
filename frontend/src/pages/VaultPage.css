@@ -76,7 +76,8 @@
 
 .sidebar-search {
     position: relative;
-    padding: 14px 12px 8px;
+    margin-top: 6px;
+    padding: 8px 12px;
 }
 
 .sidebar-search input {
