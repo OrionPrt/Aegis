@@ -268,6 +268,57 @@ export async function changeMasterPassword(
 }
 
 // ─────────────────────────────────────────────────────────
+// SUPPRESSION DU COMPTE
+// ─────────────────────────────────────────────────────────
+
+export interface DeleteAccountPayload {
+    authKeyHex: string;
+}
+
+/**
+ * Supprime définitivement le compte et le vault.
+ *
+ * Exige une re-preuve du mot de passe maître : on ne réutilise jamais
+ * `session.keys.authKeyHex` déjà en mémoire, on le re-dérive depuis ce que
+ * l'utilisateur vient de taper. Réutiliser la valeur en mémoire annulerait
+ * l'intérêt de cette vérification côté serveur - un attaquant qui a volé le
+ * token d'accès (XSS, etc.) a généralement accès au même état JS.
+ */
+export async function deleteAccount(password: string): Promise<void> {
+    const session = getSession();
+    if (!session) throw new AuthError("Session expirée.", 401);
+    const { email } = session;
+
+    const { saltBase64 } = await apiFetch(
+        `/auth/salt?email=${encodeURIComponent(email)}`
+    ) as SaltResponse;
+
+    const keys = await deriveKeys(password, email, saltBase64);
+    const payload: DeleteAccountPayload = { authKeyHex: keys.authKeyHex };
+
+    // Requête dédiée (pas apiFetch) : même raison que changeMasterPassword -
+    // éviter qu'un 401 (mauvais mot de passe) ne relance la requête et ne
+    // compte deux tentatives échouées au lieu d'une.
+    if (Date.now() > session.tokens.expiresAt - 60_000) {
+        await refreshAccessToken();
+    }
+    const response = await fetch(`${API_BASE}/vault`, {
+        method: "DELETE",
+        headers: {
+            "Content-Type": "application/json",
+            ...(getSession()?.tokens.accessToken
+                ? { Authorization: `Bearer ${getSession()!.tokens.accessToken}` }
+                : {}),
+        },
+        credentials: "include",
+        body: JSON.stringify(payload),
+    });
+    await handleResponse(response);
+
+    clearSession();
+}
+
+// ─────────────────────────────────────────────────────────
 // RAFRAÎCHISSEMENT DU TOKEN
 // ─────────────────────────────────────────────────────────
 

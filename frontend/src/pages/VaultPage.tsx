@@ -22,7 +22,7 @@ import {
     generateTotpCode, totpTimeRemaining, normalizeSecretInput, isValidTotpSecret,
 } from "../lib/totp";
 import type { TotpAlgorithm } from "../lib/totp";
-import { getSession, logout, changeMasterPassword, AuthError } from "../lib/auth-client";
+import { getSession, logout, changeMasterPassword, deleteAccount, AuthError } from "../lib/auth-client";
 import { useVault } from "../hooks/useVault";
 import type { VaultEntry } from "../lib/crypto";
 import "./VaultPage.css";
@@ -65,7 +65,7 @@ export default function VaultPage() {
     const [searchParams] = useSearchParams();
 
     // ── Hook vault — chargement, chiffrement, sauvegarde ───
-    const { entries, status, error: vaultError, saveVault, deleteVault } = useVault();
+    const { entries, status, error: vaultError, saveVault } = useVault();
     const typedEntries = entries as VaultEntryExtended[];
 
     // ── État local UI ──────────────────────────────────────
@@ -82,7 +82,9 @@ export default function VaultPage() {
     const [copied,       setCopied]       = useState<string | null>(null);
     const [showConfirmDelete,        setShowConfirmDelete]        = useState(false);
     const [showConfirmDeleteAccount, setShowConfirmDeleteAccount] = useState(false);
-    const [deleteAccountInput,       setDeleteAccountInput]       = useState("");
+    const [deleteAccountPassword,    setDeleteAccountPassword]    = useState("");
+    const [deleteAccountError,       setDeleteAccountError]       = useState<string | null>(null);
+    const [deleteAccountLoading,     setDeleteAccountLoading]     = useState(false);
     const [showChangePassword,       setShowChangePassword]       = useState(false);
     const [draggedId,   setDraggedId]   = useState<string | null>(null);
     const [dragOverId,  setDragOverId]  = useState<string | null>(null);
@@ -268,7 +270,7 @@ export default function VaultPage() {
                     </button>
                     <button
                         className="btn-delete-account"
-                        onClick={() => { setDeleteAccountInput(""); setShowConfirmDeleteAccount(true); }}
+                        onClick={() => { setDeleteAccountPassword(""); setDeleteAccountError(null); setShowConfirmDeleteAccount(true); }}
                     >
                         <Trash2 size={13} strokeWidth={2} /> Supprimer le compte
                     </button>
@@ -629,28 +631,47 @@ export default function VaultPage() {
                                 ne conserve aucune copie de vos données en clair.
                             </p>
                             <p className="confirm-subtext">
-                                Tapez <strong className="confirm-keyword">SUPPRIMER</strong> pour confirmer.
+                                Saisissez votre mot de passe maître pour confirmer.
                             </p>
                             <input
                                 className="confirm-input"
-                                value={deleteAccountInput}
-                                onChange={(e) => setDeleteAccountInput(e.target.value)}
-                                placeholder="SUPPRIMER"
+                                type="password"
+                                value={deleteAccountPassword}
+                                onChange={(e) => { setDeleteAccountPassword(e.target.value); setDeleteAccountError(null); }}
+                                placeholder="Mot de passe maître"
+                                autoComplete="current-password"
                                 autoFocus
+                                disabled={deleteAccountLoading}
                             />
+                            {deleteAccountError && (
+                                <div className="form-error" role="alert">
+                                    <AlertTriangle size={14} strokeWidth={2} /> {deleteAccountError}
+                                </div>
+                            )}
                             <div className="modal-actions">
-                                <button className="btn-secondary" onClick={() => setShowConfirmDeleteAccount(false)}>
+                                <button
+                                    className="btn-secondary"
+                                    onClick={() => setShowConfirmDeleteAccount(false)}
+                                    disabled={deleteAccountLoading}
+                                >
                                     Annuler
                                 </button>
                                 <button
                                     className="btn-delete btn-delete-solid"
-                                    disabled={deleteAccountInput !== "SUPPRIMER"}
+                                    disabled={!deleteAccountPassword || deleteAccountLoading}
                                     onClick={async () => {
-                                        await deleteVault();
-                                        navigate("/login");
+                                        setDeleteAccountLoading(true);
+                                        setDeleteAccountError(null);
+                                        try {
+                                            await deleteAccount(deleteAccountPassword);
+                                            navigate("/login");
+                                        } catch (err) {
+                                            setDeleteAccountError(err instanceof AuthError ? err.message : "Une erreur inattendue est survenue.");
+                                            setDeleteAccountLoading(false);
+                                        }
                                     }}
                                 >
-                                    Supprimer définitivement
+                                    {deleteAccountLoading ? "Suppression…" : "Supprimer définitivement"}
                                 </button>
                             </div>
                         </div>

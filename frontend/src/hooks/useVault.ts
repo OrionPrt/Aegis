@@ -26,7 +26,6 @@ export interface UseVaultReturn {
     status:      VaultStatus;
     error:       string | null;
     saveVault:   (updated: VaultEntry[]) => Promise<void>;
-    deleteVault: () => Promise<void>;
 }
 
 interface VaultResponse {
@@ -116,21 +115,5 @@ export function useVault(): UseVaultReturn {
         }
     }, []);
 
-    // ── Suppression du vault ────────────────────────────────
-
-    const deleteVault = useCallback(async () => {
-        setStatus("saving");
-        try {
-            await apiFetch("/vault", { method: "DELETE" });
-            setEntries([]);
-            setStatus("idle");
-        } catch (err) {
-            const message = err instanceof Error ? err.message : "Erreur de suppression.";
-            setError(message);
-            setStatus("error");
-            throw err;
-        }
-    }, []);
-
-    return { entries, status, error, saveVault, deleteVault };
+    return { entries, status, error, saveVault };
 }

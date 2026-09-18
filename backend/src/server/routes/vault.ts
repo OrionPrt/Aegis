@@ -11,9 +11,12 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-import { requireAuth } from "./auth.js";
+import { requireAuth, MAX_FAILED_ATTEMPTS, LOCKOUT_DURATION_MS } from "./auth.js";
+import { getIp, getUserAgent, logAudit } from "../lib/audit.js";
+import { sendAccountLockedEmail } from "../lib/email.js";
 
 // ─────────────────────────────────────────────────────────
 // TYPES
@@ -41,6 +44,10 @@ const VaultPayloadSchema = z.object({
         .string()
         .length(16)
         .regex(/^[A-Za-z0-9+/=]+$/, "iv must be base64"),
+});
+
+const DeleteAccountSchema = z.object({
+    authKeyHex: z.string().length(64).regex(/^[0-9a-f]+$/),
 });
 
 // ─────────────────────────────────────────────────────────
@@ -128,6 +135,9 @@ export async function vaultRoutes(app: FastifyInstance) {
     // ── DELETE /api/vault ───────────────────────────────────
     // Supprime définitivement le vault et le compte utilisateur.
     // Action irréversible - zero-knowledge oblige, impossible de récupérer.
+    // Exige une re-preuve du mot de passe maître (authKeyHex), au même titre
+    // que /change-password : un JWT volé (15 min de durée de vie) ne doit
+    // jamais suffire à lui seul pour une action aussi destructrice.
 
     app.delete(
         "/",
@@ -135,6 +145,48 @@ export async function vaultRoutes(app: FastifyInstance) {
         async (req: FastifyRequest, reply: FastifyReply) => {
             const { sub: userId } = req.user as JwtPayload;
 
+            const parsed = DeleteAccountSchema.safeParse(req.body);
+            if (!parsed.success) {
+                return reply.status(400).send({ message: "Données invalides." });
+            }
+            const { authKeyHex } = parsed.data;
+
+            const user = await prisma.user.findUnique({ where: { id: userId } });
+            if (!user) {
+                return reply.status(404).send({ message: "Utilisateur introuvable." });
+            }
+
+            if (user.lockedUntil && user.lockedUntil > new Date()) {
+                const retryAfter = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 1000);
+                return reply
+                    .status(429)
+                    .header("Retry-After", String(retryAfter))
+                    .send({ message: `Compte bloqué. Réessayez dans ${retryAfter}s.` });
+            }
+
+            const isValid = await bcrypt.compare(authKeyHex, user.authKeyHash);
+            if (!isValid) {
+                const failedAttempts = user.failedAttempts + 1;
+                const justLocked     = failedAttempts >= MAX_FAILED_ATTEMPTS;
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: {
+                        failedAttempts,
+                        ...(justLocked && {
+                            lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS),
+                        }),
+                    },
+                });
+                await logAudit(userId, "ACCOUNT_DELETE_FAILED", req, { failedAttempts });
+                if (justLocked) {
+                    await sendAccountLockedEmail(user.email, { ipAddress: getIp(req), userAgent: getUserAgent(req) });
+                }
+                return reply.status(401).send({ message: "Mot de passe incorrect." });
+            }
+
+            // Pas de logAudit("ACCOUNT_DELETED", ...) ici : AuditLog a
+            // onDelete: Cascade sur User, l'entrée serait supprimée dans le
+            // même instant que le compte - elle n'apporterait aucune trace.
             await prisma.user.delete({ where: { id: userId } });
 
             // Suppression du cookie de refresh token

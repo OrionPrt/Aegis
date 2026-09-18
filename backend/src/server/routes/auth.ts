@@ -33,9 +33,23 @@ interface CookieOptions {
 
 const BCRYPT_ROUNDS       = 12;
 const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;
-const MAX_FAILED_ATTEMPTS = 3;
-const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
-const DUMMY_SALT          = process.env.AEGIS_DUMMY_SALT ?? "dummy_salt_replace_with_env";
+export const MAX_FAILED_ATTEMPTS = 3;
+export const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
+
+// Fallback base64 valide (32 octets) au cas où AEGIS_DUMMY_SALT ne serait pas
+// configuré - un fallback invalide casserait la dérivation de clé côté
+// client pour tout email inexistant, ce qui recrée exactement la fuite
+// d'énumération que ce faux sel est censé éviter (voir /salt ci-dessous).
+const FALLBACK_DUMMY_SALT = "Y7QRuESvdl/D1TFc/Cx1o91ji92diiRb+8PDhXcvozE=";
+
+// Lue à CHAQUE requête plutôt que mise en cache dans une const au chargement
+// du module : ce fichier est importé (via build-app.ts) avant que app.ts
+// n'appelle dotenv.config(), donc une const évaluée au chargement du module
+// capturerait toujours `undefined` et retomberait silencieusement sur le
+// fallback, y compris quand AEGIS_DUMMY_SALT est bien défini dans .env.
+function getDummySalt(): string {
+    return process.env.AEGIS_DUMMY_SALT ?? FALLBACK_DUMMY_SALT;
+}
 
 const RegisterSchema = z.object({
     email:      z.string().email().max(254).toLowerCase().trim(),
@@ -130,7 +144,7 @@ export async function authRoutes(app: FastifyInstance) {
             select: { saltBase64: true },
         });
 
-        const saltBase64 = user?.saltBase64 ?? DUMMY_SALT;
+        const saltBase64 = user?.saltBase64 ?? getDummySalt();
         await new Promise((r) => setTimeout(r, 200 + Math.random() * 100));
 
         return reply.send({ saltBase64 });
