@@ -215,6 +215,20 @@ export async function authRoutes(app: FastifyInstance) {
             seenThisIpBefore = !!match;
         }
 
+        // Si ce navigateur porte déjà un cookie de session valide pour ce même
+        // compte (reconnexion après un simple rechargement de page, la clé de
+        // déchiffrement en mémoire ayant disparu mais le cookie httpOnly ayant
+        // survécu), on la révoque avant d'en recréer une - sinon chaque
+        // reconnexion sur le même navigateur laisse une session fantôme dans
+        // la liste "Sessions actives" jusqu'à son expiration naturelle.
+        const existingRefreshToken = req.cookies["aegis_rt"];
+        if (existingRefreshToken) {
+            const existingSession = await validateRefreshToken(existingRefreshToken);
+            if (existingSession && existingSession.userId === user.id) {
+                await revokeSession(existingSession.sessionId);
+            }
+        }
+
         const accessToken  = await reply.jwtSign({ sub: user.id, email }, { expiresIn: "15m" });
         const refreshToken = await createSession(user.id, req);
 

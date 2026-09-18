@@ -12,7 +12,10 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma.js";
 
 const BCRYPT_ROUNDS       = 12;
-const SESSION_TTL_MS      = 7 * 24 * 60 * 60 * 1000; // 7 jours
+const SESSION_TTL_MS      = 24 * 60 * 60 * 1000; // 1 jour - fenêtre courte : la clé de
+    // déchiffrement du vault ne survit de toute façon jamais à la fermeture de l'onglet
+    // (voir CookiesPage.tsx), donc ce cookie ne sert qu'au renouvellement en continu
+    // pendant une session active + à borner l'exposition en cas de vol du cookie
 const MAX_SESSIONS        = 5; // sessions simultanées max par utilisateur
 
 // ─────────────────────────────────────────────────────────
