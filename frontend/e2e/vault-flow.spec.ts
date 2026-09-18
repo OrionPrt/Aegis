@@ -8,7 +8,7 @@ test("register, add an entry, logout, log back in, and the entry decrypts correc
     await registerViaUi(page, email, password);
     await addLoginEntry(page, "GitHub", "me@example.com", "GhSecretPassw0rd!");
 
-    await expect(page.locator("text=GitHub")).toBeVisible();
+    await expect(page.locator(".entry-label", { hasText: "GitHub" })).toBeVisible();
 
     await page.locator('.nav-item:has-text("Sécurité")').click();
     await page.waitForURL("**/sessions");
@@ -18,7 +18,7 @@ test("register, add an entry, logout, log back in, and the entry decrypts correc
     // Toujours pas d'erreur de déchiffrement en revenant sur le vault sans
     // s'être reconnecté (navigation SPA, même session en mémoire).
     await expect(page.locator("text=/decryption failed/i")).toHaveCount(0);
-    await expect(page.locator("text=GitHub")).toBeVisible();
+    await expect(page.locator(".entry-label", { hasText: "GitHub" })).toBeVisible();
 
     await page.locator('button[title="Déconnexion"]').first().click();
     await page.waitForURL("**/login");
@@ -29,5 +29,5 @@ test("register, add an entry, logout, log back in, and the entry decrypts correc
     await page.waitForURL("**/vault", { timeout: 15_000 });
 
     await expect(page.locator("text=/decryption failed/i")).toHaveCount(0);
-    await expect(page.locator("text=GitHub")).toBeVisible();
+    await expect(page.locator(".entry-label", { hasText: "GitHub" })).toBeVisible();
 });
