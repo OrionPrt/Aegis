@@ -1,86 +1,54 @@
-# React + TypeScript + Vite
+# Aegis
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aegis est un gestionnaire de mots de passe **zero-knowledge** : le chiffrement
+et le déchiffrement de votre coffre-fort se font entièrement sur votre
+appareil. Le serveur ne voit et ne stocke jamais votre mot de passe maître, ni
+le contenu en clair de vos identifiants, cartes ou notes - uniquement un blob
+chiffré qu'il est techniquement incapable de lire.
 
-Currently, two official plugins are available:
+## Fonctionnalités
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Coffre-fort chiffré** pour identifiants, cartes bancaires et notes
+  sécurisées, avec génération de codes 2FA (TOTP) intégrée
+- **Générateur de mots de passe** et analyse de la force / réutilisation des
+  mots de passe existants
+- **Vérification de fuites** (Have I Been Pwned) à la demande, sans jamais
+  envoyer votre mot de passe
+- **Gestion des sessions** : liste des appareils connectés, révocation à
+  distance, historique d'audit des actions sensibles
+- **Notifications de sécurité** par email (changement de mot de passe,
+  nouvelle connexion inhabituelle, compte verrouillé)
+- **Sauvegardes chiffrées automatiques** de la base de données
 
-## React Compiler
+## Stack technique
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Frontend React + TypeScript (Vite) · Backend Fastify + TypeScript · Prisma /
+PostgreSQL (Neon) · déploiement Vercel.
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-``` shell
-docker run --name aegis-db \
-  -e POSTGRES_USER=aegis \
-  -e POSTGRES_PASSWORD=aegis_dev \
-  -e POSTGRES_DB=aegis \
-  -p 5432:5432 \
-  -d postgres:16
-```
+## Démarrer en local
 
 ```bash
-docker container start aegis-db
+npm install
+npm run dev:backend    # terminal 1
+npm run dev:frontend   # terminal 2
 ```
+
+Prérequis (base de données, variables d'environnement) et documentation
+complète : voir **[docs/](./docs/README.md)**.
+
+## Documentation
+
+| | |
+|---|---|
+| [docs/architecture.md](./docs/architecture.md) | Structure du projet et flux de requêtes |
+| [docs/security-model.md](./docs/security-model.md) | Chiffrement, sessions, protections anti-abus |
+| [docs/api-reference.md](./docs/api-reference.md) | Référence des routes de l'API |
+| [docs/frontend-guide.md](./docs/frontend-guide.md) | Pages et modules du frontend |
+| [docs/deployment.md](./docs/deployment.md) | Variables d'environnement et déploiement |
+| [BACKUP.md](./BACKUP.md) | Sauvegardes et restauration de la base de données |
+
+## Licence et pages légales
+
+Politique de confidentialité : [`/privacy`](./frontend/src/pages/PrivacyPage.tsx) ·
+Conditions d'utilisation : [`/terms`](./frontend/src/pages/TermsPage.tsx) ·
+Cookies : [`/cookies`](./frontend/src/pages/CookiesPage.tsx)

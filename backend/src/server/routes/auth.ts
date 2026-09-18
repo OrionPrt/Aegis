@@ -18,6 +18,7 @@ import {
     logAudit,
     getIp,
     getUserAgent,
+    SESSION_TTL_MS,
 } from "../lib/audit.js";
 import { sendPasswordChangedEmail, sendNewIpLoginEmail, sendAccountLockedEmail } from "../lib/email.js";
 
@@ -84,7 +85,11 @@ function cookieOpts(maxAge?: number): CookieOptions {
         secure:   process.env.NODE_ENV === "production",
         sameSite: "strict",
         path:     "/api/auth",
-        maxAge:   maxAge ?? 7 * 24 * 60 * 60,
+        // Aligné sur SESSION_TTL_MS (durée de vie réelle de la session côté
+        // serveur) - un maxAge de cookie plus long que la session qu'il
+        // référence n'apporte rien, le serveur rejette de toute façon le
+        // refresh token une fois la session expirée en base.
+        maxAge:   maxAge ?? SESSION_TTL_MS / 1000,
     };
 }
 
