@@ -15,6 +15,7 @@ le déploiement. Pour une présentation générale du projet, voir le
 | [api-reference.md](./api-reference.md) | Référence complète des routes REST (`/api/auth`, `/api/vault`, `/api/sessions`) |
 | [frontend-guide.md](./frontend-guide.md) | Pages, routes, modules `lib/`, types d'entrées du coffre-fort |
 | [deployment.md](./deployment.md) | Variables d'environnement, Vercel, Neon, Upstash, Resend |
+| [testing.md](./testing.md) | Tests unitaires, intégration, E2E - comment les lancer en local et en CI |
 | [../BACKUP.md](../BACKUP.md) | Sauvegardes chiffrées automatiques (GitHub Actions) et procédure de restauration |
 
 ## Pour démarrer en local

@@ -45,6 +45,7 @@ complète : voir **[docs/](./docs/README.md)**.
 | [docs/api-reference.md](./docs/api-reference.md) | Référence des routes de l'API |
 | [docs/frontend-guide.md](./docs/frontend-guide.md) | Pages et modules du frontend |
 | [docs/deployment.md](./docs/deployment.md) | Variables d'environnement et déploiement |
+| [docs/testing.md](./docs/testing.md) | Tests unitaires, intégration, E2E |
 | [BACKUP.md](./BACKUP.md) | Sauvegardes et restauration de la base de données |
 
 ## Licence et pages légales

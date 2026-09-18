@@ -1,0 +1,73 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # Base Postgres jetable pour les tests d'intégration backend et les
+    # tests E2E - jamais la base Neon de dev/prod (voir docs/testing.md).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: aegis
+          POSTGRES_PASSWORD: aegis_test
+          POSTGRES_DB: aegis
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aegis"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://aegis:aegis_test@localhost:5432/aegis
+      DIRECT_URL: postgresql://aegis:aegis_test@localhost:5432/aegis
+      JWT_SECRET: ci-test-jwt-secret-not-for-production
+      COOKIE_SECRET: ci-test-cookie-secret-not-for-production
+      # Vide plutôt qu'absent : désactive explicitement l'envoi réel
+      # d'emails sans dépendre du fallback silencieux de lib/email.ts.
+      RESEND_API_KEY: ""
+      NODE_ENV: development
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply database migrations
+        run: npx prisma migrate deploy
+        working-directory: backend
+
+      - name: Backend unit + integration tests
+        run: npm test --workspace=backend
+
+      - name: Frontend unit tests
+        run: npm test --workspace=frontend
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+
+      - name: E2E tests
+        run: npm run test:e2e --workspace=frontend
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7

@@ -339,6 +339,16 @@ async function refreshAccessToken(): Promise<string> {
 
     const { accessToken, expiresAt, email } = await response.json();
 
+    // Une requête concurrente (ex: SessionsPage lance /sessions et
+    // /sessions/audit en parallèle via Promise.all, ou React StrictMode
+    // double-monte un composant en dev) peut avoir déjà détecté un problème
+    // et vidé la session pendant que CE rafraîchissement était en vol. Ne
+    // jamais adopter un token dans ce cas - la session locale n'existe plus,
+    // rien ne garantit que ce token corresponde encore au bon compte.
+    if (!_session) {
+        throw new AuthError("Session expirée. Veuillez vous reconnecter.", 401);
+    }
+
     // Sécurité anti-mélange de comptes : le cookie aegis_rt est partagé par
     // tout le navigateur (un seul par domaine), alors que masterKey vit en
     // mémoire PAR ONGLET. Si un autre compte a été connecté dans ce même
@@ -347,7 +357,7 @@ async function refreshAccessToken(): Promise<string> {
     // accessToken valide mais pour le MAUVAIS compte. Fusionner ce token
     // avec l'ancienne masterKey casserait silencieusement le déchiffrement
     // du vault - on refuse et on force une reconnexion propre à la place.
-    if (_session && email && email !== _session.email) {
+    if (email && email !== _session.email) {
         clearSession();
         throw new AuthError(
             "Un autre compte a été connecté sur ce navigateur. Reconnectez-vous.",
@@ -355,10 +365,7 @@ async function refreshAccessToken(): Promise<string> {
         );
     }
 
-    if (_session) {
-        _session.tokens = { accessToken, expiresAt };
-    }
-
+    _session.tokens = { accessToken, expiresAt };
     return accessToken;
 }
 

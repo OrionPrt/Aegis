@@ -60,13 +60,26 @@ export async function buildApp(): Promise<FastifyInstance> {
     // Remplace @fastify/rate-limit : son store en mémoire ne fonctionne
     // pas correctement en serverless (chaque instance a sa propre mémoire,
     // isolée des autres). Upstash centralise le compteur côté Redis.
-    const ratelimit = new Ratelimit({
-        redis: Redis.fromEnv(), // lit UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN
-        limiter: Ratelimit.slidingWindow(100, "1 m"),
-        analytics: false,
-    });
+    //
+    // Désactivé (avec avertissement) quand les identifiants Upstash ne sont
+    // pas configurés - permet de faire tourner l'app en local/dev/CI sans
+    // dépendre d'un compte Upstash réel. En production, ces variables sont
+    // toujours définies (voir docs/deployment.md) donc ce chemin n'est
+    // jamais emprunté en conditions réelles.
+    const ratelimit = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+        ? new Ratelimit({
+              redis: Redis.fromEnv(),
+              limiter: Ratelimit.slidingWindow(100, "1 m"),
+              analytics: false,
+          })
+        : null;
+
+    if (!ratelimit) {
+        app.log.warn("UPSTASH_REDIS_REST_URL/TOKEN absents - rate limiting désactivé.");
+    }
 
     app.addHook("preHandler", async (req, reply) => {
+        if (!ratelimit) return;
         const { success, reset } = await ratelimit.limit(req.ip);
         if (!success) {
             const retryAfter = Math.ceil((reset - Date.now()) / 1000);

@@ -15,7 +15,11 @@
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run src/server/lib",
+    "test:integration": "vitest run test/integration"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.0",
@@ -39,6 +43,7 @@
     "prisma": "^5.19.1",
     "serve": "^14.2.4",
     "tsx": "^4.19.0",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "vitest": "^3.2.7"
   }
 }
