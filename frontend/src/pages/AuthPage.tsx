@@ -6,7 +6,7 @@
  */
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Shield, Eye, EyeOff, Loader2, AlertTriangle, KeyRound, Lock, ShieldCheck, Code2 } from "lucide-react";
 import { login, register, AuthError } from "../lib/auth-client";
 import { evaluatePasswordStrength } from "../lib/crypto";
@@ -288,6 +288,14 @@ export default function AuthPage() {
                                     : "Créer mon vault"}
                         </button>
 
+                        {mode === "register" && (
+                            <p className="auth-legal-consent">
+                                En créant un compte, vous acceptez les{" "}
+                                <Link to="/terms">conditions d'utilisation</Link> et la{" "}
+                                <Link to="/privacy">politique de confidentialité</Link>.
+                            </p>
+                        )}
+
                     </form>
 
                     <div className="auth-switch">
@@ -304,6 +312,12 @@ export default function AuthPage() {
                                 </button>
                             </>
                         )}
+                    </div>
+
+                    <div className="auth-legal-footer">
+                        <Link to="/privacy">Confidentialité</Link>
+                        <Link to="/terms">CGU</Link>
+                        <Link to="/cookies">Cookies</Link>
                     </div>
 
                 </div>

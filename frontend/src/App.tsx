@@ -4,6 +4,9 @@ import VaultPage from "./pages/VaultPage";
 import AuthPage from "./pages/AuthPage";
 import SessionsPage from "./pages/SessionsPage";
 import SecurityAuditPage from "./pages/SecurityAuditPage";
+import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
+import CookiesPage from "./pages/CookiesPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return isAuthenticated() ? <>{children}</> : <Navigate to="/login" replace />;
@@ -38,6 +41,11 @@ export default function App() {
 
           {/* Login */}
           <Route path="/login" element={<AuthPage />} />
+
+          {/* Pages légales - publiques */}
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/cookies" element={<CookiesPage />} />
 
           {/* Sessions - protégé */}
           <Route
