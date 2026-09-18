@@ -11,7 +11,7 @@ import {
     ArrowLeft, Shield, Monitor, Smartphone, LogOut, X,
     CheckCircle2, XCircle, Star, Eye, Pencil, AlertTriangle,
 } from "lucide-react";
-import { apiFetch } from "../lib/auth-client";
+import { apiFetch, AuthError } from "../lib/auth-client";
 import "./SessionsPage.css";
 
 // ─────────────────────────────────────────────────────────
@@ -49,6 +49,7 @@ export default function SessionsPage() {
     const [auditTotal,   setAuditTotal]   = useState(0);
     const [auditOffset,  setAuditOffset]  = useState(0);
     const [loading,      setLoading]      = useState(true);
+    const [error,        setError]        = useState<string | null>(null);
     const [revoking,     setRevoking]     = useState<string | null>(null);
 
     const AUDIT_LIMIT = 20;
@@ -57,6 +58,7 @@ export default function SessionsPage() {
 
     async function fetchData(offset = 0) {
         setLoading(true);
+        setError(null);
         try {
             const [sessionsRes, auditRes] = await Promise.all([
                 apiFetch("/sessions") as Promise<{ sessions: Session[] }>,
@@ -69,6 +71,15 @@ export default function SessionsPage() {
             setAuditLogs(auditRes.logs);
             setAuditTotal(auditRes.total);
             setAuditOffset(offset);
+        } catch (err) {
+            // Ne jamais afficher silencieusement "0 session" sur un échec
+            // réseau/auth - l'utilisateur doit savoir que le chargement a
+            // échoué plutôt que de croire qu'il n'a vraiment aucune session.
+            if (err instanceof AuthError && err.status === 401) {
+                navigate("/login");
+                return;
+            }
+            setError(err instanceof Error ? err.message : "Erreur de chargement.");
         } finally {
             setLoading(false);
         }
@@ -118,6 +129,12 @@ export default function SessionsPage() {
                 <div className="sp-loading">
                     <Shield className="loading-mark" size={26} strokeWidth={1.75} />
                     <p>Chargement…</p>
+                </div>
+            ) : error ? (
+                <div className="sp-loading">
+                    <AlertTriangle className="loading-mark" size={26} strokeWidth={1.75} />
+                    <p>{error}</p>
+                    <button className="sp-back" onClick={() => fetchData(auditOffset)}>Réessayer</button>
                 </div>
             ) : (
                 <div className="sp-content">

@@ -343,9 +343,14 @@ export async function authRoutes(app: FastifyInstance) {
             { expiresIn: "15m" }
         );
 
+        // `email` permet au client de vérifier que ce rafraîchissement
+        // correspond bien au compte qu'il croit avoir en mémoire, avant de
+        // remplacer l'accessToken - voir le commentaire dans
+        // refreshAccessToken() côté frontend (auth-client.ts) pour le
+        // scénario de mélange de comptes que ça empêche.
         return reply
             .setCookie("aegis_rt", newRefreshToken, cookieOpts())
-            .send({ accessToken: newAccessToken, expiresAt: accessTokenExpiresAt() });
+            .send({ accessToken: newAccessToken, expiresAt: accessTokenExpiresAt(), email: result.email });
     });
 
     // ── POST /api/auth/logout ───────────────────────────────

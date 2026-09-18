@@ -337,7 +337,23 @@ async function refreshAccessToken(): Promise<string> {
         throw new AuthError("Session expirée. Veuillez vous reconnecter.", 401);
     }
 
-    const { accessToken, expiresAt } = await response.json();
+    const { accessToken, expiresAt, email } = await response.json();
+
+    // Sécurité anti-mélange de comptes : le cookie aegis_rt est partagé par
+    // tout le navigateur (un seul par domaine), alors que masterKey vit en
+    // mémoire PAR ONGLET. Si un autre compte a été connecté dans ce même
+    // navigateur pendant que cet onglet restait ouvert (le cookie pointe
+    // alors vers ce second compte), un rafraîchissement renverrait un
+    // accessToken valide mais pour le MAUVAIS compte. Fusionner ce token
+    // avec l'ancienne masterKey casserait silencieusement le déchiffrement
+    // du vault - on refuse et on force une reconnexion propre à la place.
+    if (_session && email && email !== _session.email) {
+        clearSession();
+        throw new AuthError(
+            "Un autre compte a été connecté sur ce navigateur. Reconnectez-vous.",
+            401
+        );
+    }
 
     if (_session) {
         _session.tokens = { accessToken, expiresAt };
