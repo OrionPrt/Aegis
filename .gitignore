@@ -27,3 +27,9 @@ dist-ssr
 
 .env
 aegis-backups/
+
+# graphify internal cache/tracking - keep graph.json, graph.html, GRAPH_REPORT.md
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/cost.json
+.graphify*
