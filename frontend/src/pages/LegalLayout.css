@@ -18,12 +18,12 @@
 .legal-back {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: var(--space-2);
     background: none;
     border: none;
     color: var(--text-muted);
     font-family: var(--font-ui);
-    font-size: 13px;
+    font-size: var(--text-sm);
     cursor: pointer;
     padding: 0;
     margin-bottom: 28px;
@@ -35,7 +35,7 @@
 .legal-brand {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: var(--space-2);
     margin-bottom: 20px;
 }
 
@@ -51,7 +51,7 @@
 }
 
 .legal-brand-name {
-    font-size: 15px;
+    font-size: var(--text-lg);
     font-weight: 600;
     letter-spacing: -0.01em;
 }
@@ -65,7 +65,7 @@
 }
 
 .legal-nav a {
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--text-secondary);
     text-decoration: none;
     transition: color 0.15s var(--ease);
@@ -81,19 +81,19 @@
 }
 
 .legal-updated {
-    font-size: 12.5px;
+    font-size: var(--text-xs);
     color: var(--text-muted);
     margin: 0 0 36px;
 }
 
 .legal-content {
-    font-size: 14px;
+    font-size: var(--text-base);
     line-height: 1.7;
     color: var(--text-secondary);
 }
 
 .legal-content h2 {
-    font-size: 16px;
+    font-size: var(--text-lg);
     font-weight: 600;
     color: var(--text-primary);
     margin: 36px 0 12px;
@@ -123,7 +123,7 @@
 .legal-placeholder {
     color: var(--danger);
     font-family: var(--font-mono);
-    font-size: 12.5px;
+    font-size: var(--text-xs);
     background: var(--danger-soft);
     padding: 1px 6px;
     border-radius: 4px;
@@ -131,17 +131,17 @@
 
 .legal-callout {
     background: var(--accent-soft);
-    border: 1px solid rgba(198, 161, 91, 0.25);
+    border: 1px solid rgba(198, 161, 91, 0.3);
     border-radius: var(--radius-md);
     padding: 14px 16px;
     margin: 20px 0;
-    font-size: 13.5px;
+    font-size: var(--text-sm);
 }
 
 .legal-callout strong { color: var(--accent-high); }
 
 @media (max-width: 640px) {
     .legal-layout { padding: 32px 18px 60px; }
-    .legal-title { font-size: 22px; }
+    .legal-title { font-size: var(--text-xl); }
     .legal-nav { flex-wrap: wrap; gap: 12px 18px; }
 }
