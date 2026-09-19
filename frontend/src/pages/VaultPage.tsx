@@ -11,8 +11,11 @@ import {
     Shield, Search, LayoutGrid, KeyRound, CreditCard, StickyNote,
     RefreshCw, ShieldCheck, ShieldAlert, LogOut, Trash2, Plus, Copy, Check,
     Eye, EyeOff, ExternalLink, Pencil, AlertTriangle, X, ArrowLeft, GripVertical,
+    SlidersHorizontal,
 } from "lucide-react";
-import { generatePassword, evaluatePasswordStrength } from "../lib/crypto";
+import { generatePassword, evaluatePasswordStrength, DEFAULT_GENERATOR_SETTINGS } from "../lib/crypto";
+import type { GeneratorSettings } from "../lib/crypto";
+import GeneratorOptions from "./GeneratorOptions";
 import {
     digitsOnly, detectBrand, brandLabel, cvvLength, maxPanLength,
     formatCardNumber, maskCardNumber, last4, luhn, formatExpiry, checkExpiry,
@@ -1083,22 +1086,15 @@ function ChangePasswordModal({
 // ─────────────────────────────────────────────────────────
 
 function PasswordGeneratorModal({ onClose }: { onClose: () => void }) {
-    const [length,           setLength]           = useState(20);
-    const [uppercase,        setUppercase]        = useState(true);
-    const [lowercase,        setLowercase]        = useState(true);
-    const [numbers,          setNumbers]          = useState(true);
-    const [symbols,          setSymbols]          = useState(true);
-    const [excludeAmbiguous, setExcludeAmbiguous] = useState(false);
+    const [settings,         setSettings]         = useState<GeneratorSettings>(DEFAULT_GENERATOR_SETTINGS);
     const [nonce,            setNonce]            = useState(0);
     const [copiedPassword,   setCopiedPassword]   = useState<string | null>(null);
 
-    const activeCharsets = [uppercase, lowercase, numbers, symbols].filter(Boolean).length;
-
     // `nonce` n'est pas lu dans le callback : il force juste une nouvelle valeur au clic sur "Régénérer"
     const password = useMemo(
-        () => generatePassword({ length, uppercase, lowercase, numbers, symbols, excludeAmbiguous }),
+        () => generatePassword(settings),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [length, uppercase, lowercase, numbers, symbols, excludeAmbiguous, nonce],
+        [settings, nonce],
     );
     const copied = copiedPassword === password;
 
@@ -1111,11 +1107,6 @@ function PasswordGeneratorModal({ onClose }: { onClose: () => void }) {
         setCopiedPassword(password);
         setTimeout(() => setCopiedPassword((p) => (p === password ? null : p)), 2000);
         setTimeout(() => navigator.clipboard.writeText(""), 30_000);
-    }
-
-    function toggleCharset(current: boolean, setter: (v: boolean) => void) {
-        if (current && activeCharsets <= 1) return; // au moins un jeu de caractères actif
-        setter(!current);
     }
 
     const strength = evaluatePasswordStrength(password);
@@ -1146,60 +1137,7 @@ function PasswordGeneratorModal({ onClose }: { onClose: () => void }) {
 
                     <StrengthBar score={strength.score} entropy={strength.entropy} />
 
-                    <div className="form-row">
-                        <label>Longueur - {length} caractères</label>
-                        <input
-                            type="range"
-                            min={8}
-                            max={64}
-                            value={length}
-                            className="generator-range"
-                            onChange={(e) => setLength(Number(e.target.value))}
-                        />
-                    </div>
-
-                    <div className="generator-options">
-                        <label className="generator-toggle">
-                            <input
-                                type="checkbox"
-                                checked={uppercase}
-                                onChange={() => toggleCharset(uppercase, setUppercase)}
-                            />
-                            Majuscules (A-Z)
-                        </label>
-                        <label className="generator-toggle">
-                            <input
-                                type="checkbox"
-                                checked={lowercase}
-                                onChange={() => toggleCharset(lowercase, setLowercase)}
-                            />
-                            Minuscules (a-z)
-                        </label>
-                        <label className="generator-toggle">
-                            <input
-                                type="checkbox"
-                                checked={numbers}
-                                onChange={() => toggleCharset(numbers, setNumbers)}
-                            />
-                            Chiffres (0-9)
-                        </label>
-                        <label className="generator-toggle">
-                            <input
-                                type="checkbox"
-                                checked={symbols}
-                                onChange={() => toggleCharset(symbols, setSymbols)}
-                            />
-                            Symboles (!@#$…)
-                        </label>
-                        <label className="generator-toggle">
-                            <input
-                                type="checkbox"
-                                checked={excludeAmbiguous}
-                                onChange={() => setExcludeAmbiguous((v) => !v)}
-                            />
-                            Exclure les caractères ambigus (0, O, l, 1, I)
-                        </label>
-                    </div>
+                    <GeneratorOptions value={settings} onChange={setSettings} />
 
                     <div className="modal-actions">
                         <button className="btn-secondary" onClick={onClose}>Fermer</button>
@@ -1251,6 +1189,12 @@ function EntryModal({
     const [tagsInput,  setTagsInput]  = useState(entry?.tags?.join(", ") ?? "");
     const [formError,  setFormError]  = useState<string | null>(null);
     const [totpInputError, setTotpInputError] = useState<string | null>(null);
+    // Réglages du générateur conservés tant que le modal est ouvert : on ne
+    // veut pas re-décocher les symboles à chaque clic sur "Générer".
+    // Mêmes valeurs par défaut que le générateur autonome (caractères
+    // ambigus inclus) pour que les deux se comportent pareil.
+    const [genSettings,    setGenSettings]    = useState<GeneratorSettings>(DEFAULT_GENERATOR_SETTINGS);
+    const [showGenOptions, setShowGenOptions] = useState(false);
 
     const strength = form.category === "login" ? evaluatePasswordStrength(form.password ?? "") : null;
 
@@ -1259,10 +1203,20 @@ function EntryModal({
     const panInvalid   = panDigits.length >= 12 && !luhn(panDigits);
     const expiryStatus = checkExpiry(form.cardExpiry ?? "");
 
-    function handleGenerate() {
-        const pwd = generatePassword({ length: 20, symbols: true });
-        setForm((f) => ({ ...f, password: pwd }));
+    function applyGenerated(settings: GeneratorSettings) {
+        setForm((f) => ({ ...f, password: generatePassword(settings) }));
         setShowPass(true);
+    }
+
+    function handleGenerate() {
+        applyGenerated(genSettings);
+    }
+
+    // Changer une option régénère aussitôt : c'est le but (ex. un site qui
+    // refuse les caractères spéciaux) - inutile de recliquer sur "Générer".
+    function handleGenSettingsChange(next: GeneratorSettings) {
+        setGenSettings(next);
+        applyGenerated(next);
     }
 
     function validate(): string | null {
@@ -1409,11 +1363,27 @@ function EntryModal({
                                     >
                                         <RefreshCw size={14} strokeWidth={2} />
                                     </button>
+                                    <button
+                                        type="button"
+                                        className={`icon-btn ${showGenOptions ? "generate-options-open" : ""}`}
+                                        onClick={() => setShowGenOptions((v) => !v)}
+                                        title="Options du générateur"
+                                        aria-expanded={showGenOptions}
+                                        aria-controls="modal-generator-options"
+                                    >
+                                        <SlidersHorizontal size={14} strokeWidth={2} />
+                                    </button>
                                 </div>
                                 {form.password && strength && (
                                     <StrengthBar score={strength.score} entropy={strength.entropy} />
                                 )}
                             </div>
+
+                            {showGenOptions && (
+                                <div id="modal-generator-options" className="generator-panel">
+                                    <GeneratorOptions value={genSettings} onChange={handleGenSettingsChange} />
+                                </div>
+                            )}
 
                             <div className="form-row">
                                 <label htmlFor="modal-url">URL</label>

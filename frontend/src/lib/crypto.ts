@@ -239,6 +239,18 @@ export interface PasswordOptions {
     excludeAmbiguous?: boolean; // exclut 0, O, l, 1, I — défaut : true
 }
 
+/** Réglages complets du générateur (toutes les options renseignées). */
+export type GeneratorSettings = Required<PasswordOptions>;
+
+export const DEFAULT_GENERATOR_SETTINGS: GeneratorSettings = {
+    length:           20,
+    uppercase:        true,
+    lowercase:        true,
+    numbers:          true,
+    symbols:          true,
+    excludeAmbiguous: false,
+};
+
 /**
  * Génère un mot de passe aléatoire cryptographiquement sûr.
  * Utilise crypto.getRandomValues() — jamais Math.random().
