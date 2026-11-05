@@ -27,7 +27,8 @@ faite par le backend sur chaque endpoint (`requireAuth`).
   lien de consentement légal (mode inscription) et le pied de page vers les
   pages légales.
 - **`VaultPage`** - cœur de l'application : liste des entrées, recherche,
-  filtre par catégorie, détail d'une entrée, drag-and-drop pour réordonner,
+  filtre par catégorie, détail d'une entrée, réordonnancement (drag-and-drop
+  HTML5 à la souris, poignée tactile via `useTouchReorder` sur mobile),
   modale d'ajout/édition (`EntryModal`), générateur de mot de passe
   (`PasswordGeneratorModal`), changement de mot de passe maître
   (`ChangePasswordModal`), suppression de compte (re-authentification par mot

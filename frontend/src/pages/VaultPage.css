@@ -371,6 +371,23 @@
 .entry-card:hover .entry-drag-handle { opacity: 1; }
 .entry-card.dragging .entry-drag-handle { cursor: grabbing; }
 
+/* Indicateur de dépôt sous la carte (geste tactile, moitié basse). */
+.entry-card.drag-over.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* Écrans tactiles : pas de survol, donc poignée toujours visible, avec une
+   zone de saisie de 44 px qui ne change pas la taille de la carte. */
+@media (hover: none), (pointer: coarse) {
+    .entry-drag-handle {
+        opacity: 1;
+        padding: 15px 16px 15px 14px;
+        margin: -15px -16px -15px -14px;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+    }
+}
+
 .entry-icon-wrap {
     width: 36px;
     height: 36px;
