@@ -5,7 +5,7 @@
  * ╚═══════════════════════════════════════════════════════╝
  */
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
     Shield, Search, LayoutGrid, KeyRound, CreditCard, StickyNote,
@@ -27,6 +27,10 @@ import {
 import type { TotpAlgorithm } from "../lib/totp";
 import { getSession, logout, changeMasterPassword, deleteAccount, AuthError } from "../lib/auth-client";
 import { useVault } from "../hooks/useVault";
+import { useTouchReorder, ENTRY_ID_ATTRIBUTE } from "../hooks/useTouchReorder";
+import type { TouchHandleProps } from "../hooks/useTouchReorder";
+import { moveEntry } from "../lib/reorder";
+import type { DropPlacement } from "../lib/reorder";
 import type { VaultEntry } from "../lib/crypto";
 import "./VaultPage.css";
 
@@ -92,8 +96,19 @@ export default function VaultPage() {
     const [draggedId,   setDraggedId]   = useState<string | null>(null);
     const [dragOverId,  setDragOverId]  = useState<string | null>(null);
 
+    const entryListRef = useRef<HTMLDivElement>(null);
+
     const saving  = status === "saving";
     const loading = status === "loading";
+
+    const touchReorder = useTouchReorder({
+        listRef: entryListRef,
+        // Une sauvegarde en cours repartirait d'une liste bientôt périmée.
+        isDisabled: saving,
+        onDrop: (draggedEntryId, target) => {
+            void reorderEntries(draggedEntryId, target.id, target.placement);
+        },
+    });
 
     // ── Filtrage ───────────────────────────────────────────
 
@@ -137,19 +152,13 @@ export default function VaultPage() {
         if (selected?.id === id) setSelected(null);
     }
 
-    // Réordonne le vault en déplaçant `draggedEntryId` juste avant `targetId`.
+    // Réordonne le vault en déplaçant `draggedEntryId` avant ou après `targetId`.
     // L'ordre du tableau est ce qui est persisté (chiffré) via saveVault -
     // c'est donc lui qui définit l'ordre d'affichage à la prochaine connexion.
-    async function reorderEntries(draggedEntryId: string, targetId: string) {
-        if (draggedEntryId === targetId) return;
-        const list = [...typedEntries];
-        const fromIndex = list.findIndex((e) => e.id === draggedEntryId);
-        if (fromIndex === -1) return;
-        const [moved] = list.splice(fromIndex, 1);
-        const toIndex = list.findIndex((e) => e.id === targetId);
-        if (toIndex === -1) return;
-        list.splice(toIndex, 0, moved);
-        await saveVault(list);
+    async function reorderEntries(draggedEntryId: string, targetId: string, placement?: DropPlacement) {
+        const reordered = moveEntry(typedEntries, draggedEntryId, targetId, placement);
+        if (reordered === typedEntries) return;
+        await saveVault([...reordered]);
     }
 
     async function handleLogout() {
@@ -338,7 +347,7 @@ export default function VaultPage() {
                     />
                 </div>
 
-                <div className="entry-list">
+                <div className="entry-list" ref={entryListRef}>
                     {filtered.length === 0 ? (
                         <EmptyState search={search} />
                     ) : (
@@ -349,8 +358,14 @@ export default function VaultPage() {
                                 active={selected?.id === entry.id}
                                 onClick={() => { setSelected(entry); setShowPassword(false); setShowNotes(false); }}
                                 reorderable={!search}
-                                dragging={draggedId === entry.id}
-                                dragOver={dragOverId === entry.id && draggedId !== entry.id}
+                                nativeDragEnabled={touchReorder.draggedId === null}
+                                dragging={draggedId === entry.id || touchReorder.draggedId === entry.id}
+                                dragOver={
+                                    (dragOverId === entry.id && draggedId !== entry.id) ||
+                                    touchReorder.dropTarget?.id === entry.id
+                                }
+                                dropAfter={touchReorder.dropTarget?.id === entry.id && touchReorder.dropTarget.placement === "after"}
+                                handleProps={touchReorder.getHandleProps(entry.id)}
                                 onDragStart={() => setDraggedId(entry.id)}
                                 onDragEnter={() => { if (draggedId) setDragOverId(entry.id); }}
                                 onDragEnd={() => { setDraggedId(null); setDragOverId(null); }}
@@ -692,15 +707,18 @@ export default function VaultPage() {
 
 function EntryCard({
                        entry, active, onClick,
-                       reorderable, dragging, dragOver,
+                       reorderable, nativeDragEnabled, dragging, dragOver, dropAfter, handleProps,
                        onDragStart, onDragEnter, onDragEnd, onDrop,
                    }: {
     entry: VaultEntryExtended;
     active: boolean;
     onClick: () => void;
     reorderable: boolean;
+    nativeDragEnabled: boolean;
     dragging: boolean;
     dragOver: boolean;
+    dropAfter: boolean;
+    handleProps: TouchHandleProps;
     onDragStart: () => void;
     onDragEnter: () => void;
     onDragEnd: () => void;
@@ -708,9 +726,12 @@ function EntryCard({
 }) {
     return (
         <div
-            className={`entry-card ${active ? "active" : ""} ${dragging ? "dragging" : ""} ${dragOver ? "drag-over" : ""}`}
+            className={`entry-card ${active ? "active" : ""} ${dragging ? "dragging" : ""} ${dragOver ? "drag-over" : ""} ${dropAfter ? "drop-after" : ""}`}
+            {...{ [ENTRY_ID_ATTRIBUTE]: entry.id }}
             onClick={onClick}
-            draggable={reorderable}
+            // Sur Android, un appui long lancerait le glisser natif et
+            // interromprait le geste tactile en cours sur la poignée.
+            draggable={reorderable && nativeDragEnabled}
             onDragStart={onDragStart}
             onDragEnter={onDragEnter}
             onDragOver={(e) => e.preventDefault()}
@@ -718,7 +739,7 @@ function EntryCard({
             onDrop={(e) => { e.preventDefault(); onDrop(); }}
         >
             {reorderable && (
-                <span className="entry-drag-handle" title="Glisser pour réordonner">
+                <span className="entry-drag-handle" title="Glisser pour réordonner" {...handleProps}>
                     <GripVertical size={14} strokeWidth={2} />
                 </span>
             )}
