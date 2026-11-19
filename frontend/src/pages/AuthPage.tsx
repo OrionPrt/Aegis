@@ -6,7 +6,7 @@
  */
 
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Shield, Eye, EyeOff, Loader2, AlertTriangle, KeyRound, Lock, ShieldCheck, Code2 } from "lucide-react";
 import { login, register, AuthError } from "../lib/auth-client";
 import { evaluatePasswordStrength } from "../lib/crypto";
@@ -31,7 +31,11 @@ interface FormState {
 export default function AuthPage() {
     const navigate = useNavigate();
 
-    const [mode, setMode]           = useState<Mode>("login");
+    // Le mode vit dans l'URL (/login?mode=register) : en revenant d'une page
+    // légale ouverte depuis l'inscription, on retrouve le bon onglet.
+    const [searchParams, setSearchParams] = useSearchParams();
+    const mode: Mode = searchParams.get("mode") === "register" ? "register" : "login";
+
     const [form, setForm]           = useState<FormState>({ email: "", password: "", confirmPassword: "" });
     const [showPassword, setShow]   = useState(false);
     const [loading, setLoading]     = useState(false);
@@ -47,7 +51,7 @@ export default function AuthPage() {
     }
 
     function switchMode(next: Mode) {
-        setMode(next);
+        setSearchParams(next === "register" ? { mode: "register" } : {}, { replace: true });
         setError(null);
         setForm({ email: form.email, password: "", confirmPassword: "" });
     }
