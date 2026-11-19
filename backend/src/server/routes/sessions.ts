@@ -23,16 +23,6 @@ import {
 
 interface JwtPayload { sub: string; email: string; }
 
-const MAX_AUDIT_PAGE_SIZE     = 100;
-const DEFAULT_AUDIT_PAGE_SIZE = 50;
-
-// Au-delà de 100, la limite est plafonnée plutôt que refusée.
-const AuditQuerySchema = z.object({
-    limit:  z.coerce.number().int().min(1).default(DEFAULT_AUDIT_PAGE_SIZE)
-        .transform((n) => Math.min(n, MAX_AUDIT_PAGE_SIZE)),
-    offset: z.coerce.number().int().min(0).default(0),
-});
-
 // ─────────────────────────────────────────────────────────
 // ROUTES
 // ─────────────────────────────────────────────────────────
@@ -148,3 +138,19 @@ export async function sessionRoutes(app: FastifyInstance) {
         }
     );
 }
+
+// ─────────────────────────────────────────────────────────
+// SCHÉMAS
+// ─────────────────────────────────────────────────────────
+
+const MAX_AUDIT_PAGE_SIZE     = 100;
+const DEFAULT_AUDIT_PAGE_SIZE = 50;
+
+// Pagination de GET /audit. Au-delà de 100, la limite est plafonnée plutôt
+// que refusée. Déclaré en fin de fichier : lu à l'exécution des requêtes,
+// bien après le chargement du module.
+const AuditQuerySchema = z.object({
+    limit:  z.coerce.number().int().min(1).default(DEFAULT_AUDIT_PAGE_SIZE)
+        .transform((n) => Math.min(n, MAX_AUDIT_PAGE_SIZE)),
+    offset: z.coerce.number().int().min(0).default(0),
+});
