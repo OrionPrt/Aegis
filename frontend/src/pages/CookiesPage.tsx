@@ -9,6 +9,7 @@
  * un seul cookie, aucun tracker tiers, aucun outil d'analytics.
  */
 
+import { Link } from "react-router-dom";
 import { LegalLayout } from "./LegalLayout";
 
 export default function CookiesPage() {
@@ -55,7 +56,7 @@ export default function CookiesPage() {
                     uniquement si vous activez volontairement la vérification de
                     fuites dans la page "Analyse du vault". Aucun cookie n'est posé
                     par ce service depuis Aegis, et votre mot de passe n'est jamais
-                    transmis (voir la <a href="/privacy">politique de confidentialité</a>).
+                    transmis (voir la <Link to="/privacy" replace>politique de confidentialité</Link>).
                 </li>
             </ul>
 

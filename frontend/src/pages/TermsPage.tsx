@@ -7,6 +7,7 @@
  * Premier jet - à faire relire par un professionnel avant publication.
  */
 
+import { Link } from "react-router-dom";
 import { LegalLayout } from "./LegalLayout";
 
 export default function TermsPage() {
@@ -86,7 +87,7 @@ export default function TermsPage() {
                 Cette action est <strong>définitive et irréversible</strong> : le
                 contenu de votre coffre-fort est effacé de notre base de données
                 active immédiatement (voir notre{" "}
-                <a href="/privacy">politique de confidentialité</a> pour le détail
+                <Link to="/privacy" replace>politique de confidentialité</Link> pour le détail
                 concernant les sauvegardes).
             </p>
 

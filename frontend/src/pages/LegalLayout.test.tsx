@@ -64,3 +64,33 @@ describe("LegalLayout — bouton Retour", () => {
         expect(screen.getByText("Accueil")).toBeInTheDocument();
     });
 });
+
+describe("Pages légales — liens dans le texte", () => {
+    // Un <a href> recharge toute l'application : la clé de déchiffrement, qui
+    // ne vit qu'en mémoire, disparaît et l'utilisateur connecté est déconnecté.
+    it.each([
+        ["/cookies", "politique de confidentialité", "Politique de confidentialité"],
+        ["/privacy", "politique cookies", "Politique cookies"],
+        ["/terms", "politique de confidentialité", "Politique de confidentialité"],
+    ])("depuis %s, « %s » ouvre la page dans l'application", async (from, linkName, heading) => {
+        const user = userEvent.setup();
+        renderApp(from);
+
+        const content = document.querySelector(".legal-content") as HTMLElement;
+        await user.click(within(content).getByRole("link", { name: linkName }));
+
+        expect(screen.getByRole("heading", { level: 1, name: heading })).toBeInTheDocument();
+    });
+
+    it("garde le bouton Retour vers la page d'origine après un lien du texte", async () => {
+        const user = userEvent.setup();
+        renderApp("/login");
+
+        await user.click(screen.getByRole("link", { name: "Cookies" }));
+        const content = document.querySelector(".legal-content") as HTMLElement;
+        await user.click(within(content).getByRole("link", { name: "politique de confidentialité" }));
+        await user.click(screen.getByRole("button", { name: "Retour" }));
+
+        expect(screen.getByRole("button", { name: "Déverrouiller le vault" })).toBeInTheDocument();
+    });
+});
