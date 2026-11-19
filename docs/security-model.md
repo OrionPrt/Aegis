@@ -60,7 +60,20 @@ Points importants :
   base, lookup O(1)) + `secretToken` (vérifié via `bcrypt.compare` contre
   `Session.refreshTokenHash`). Évite un scan O(n) des sessions actives.
 - `POST /api/auth/refresh` fait une **rotation** du refresh token à chaque
-  utilisation (nouveau `lookupToken`/`secretToken`, ancien invalidé).
+  utilisation (nouveau `lookupToken`/`secretToken`, ancien invalidé). La
+  rotation est conditionnée au token présenté : de deux rafraîchissements
+  simultanés avec le même cookie, un seul réussit (le client retente une fois,
+  avec le cookie que l'autre a reçu).
+- **Réutilisation détectée** : l'ancien `lookupToken` est conservé
+  (`Session.previousLookupToken`). S'il est présenté plus de 30 s après la
+  rotation, c'est un cookie volé rejoué : la session est révoquée.
+- **Durée de vie absolue** : une session ne peut pas être prolongée au-delà de
+  30 jours après sa création (`SESSION_ABSOLUTE_TTL_MS`), même utilisée tous
+  les jours.
+- **Access token lié à sa session** : le JWT porte l'id de session (`sid`) et
+  `requireAuth` vérifie qu'elle existe encore. Une déconnexion, une révocation
+  depuis la page Sessions ou un changement de mot de passe invalident aussitôt
+  les jetons déjà émis, sans attendre leurs 15 minutes.
 - **Dédoublonnage même-appareil** : à la connexion, si un cookie `aegis_rt`
   valide pour ce même compte existe déjà (ex. reconnexion après un simple
   rechargement de page), l'ancienne session est révoquée avant d'en créer une

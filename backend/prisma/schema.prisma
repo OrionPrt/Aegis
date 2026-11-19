@@ -36,6 +36,10 @@ model Session {
 
   lookupToken      String    @unique  // 16 bytes hex - recherche O(1) par index
   refreshTokenHash String             // bcrypt(secretToken) - vérification
+  // lookupToken d'avant la dernière rotation : le revoir passé un court
+  // délai de grâce signale un refresh token volé et rejoué (session révoquée).
+  previousLookupToken String?  @unique
+  rotatedAt        DateTime?
   userAgent        String?   // "Chrome 124 / macOS"
   ipAddress        String?
   lastUsedAt       DateTime  @default(now())

@@ -15,6 +15,7 @@ import {
     rotateRefreshToken,
     revokeSession,
     revokeAllSessions,
+    findActiveSession,
     logAudit,
     getIp,
     getUserAgent,
@@ -22,7 +23,8 @@ import {
 } from "../lib/audit.js";
 import { sendPasswordChangedEmail, sendNewIpLoginEmail, sendAccountLockedEmail } from "../lib/email.js";
 
-interface JwtPayload { sub: string; email: string; }
+/** Contenu de l'access token : `sid` lie le jeton à sa session (voir requireAuth). */
+export interface JwtPayload { sub: string; email: string; sid: string; }
 
 interface CookieOptions {
     httpOnly?: boolean;
@@ -124,8 +126,8 @@ export async function authRoutes(app: FastifyInstance) {
             data: { email, authKeyHash, saltBase64 },
         });
 
-        const accessToken    = await reply.jwtSign({ sub: user.id, email }, { expiresIn: "15m" });
-        const refreshToken   = await createSession(user.id, req);
+        const { refreshToken, sessionId } = await createSession(user.id, req);
+        const accessToken = await signAccessToken(reply, { sub: user.id, email, sid: sessionId });
 
         await logAudit(user.id, "REGISTER", req);
 
@@ -234,8 +236,8 @@ export async function authRoutes(app: FastifyInstance) {
             }
         }
 
-        const accessToken  = await reply.jwtSign({ sub: user.id, email }, { expiresIn: "15m" });
-        const refreshToken = await createSession(user.id, req);
+        const { refreshToken, sessionId } = await createSession(user.id, req);
+        const accessToken = await signAccessToken(reply, { sub: user.id, email, sid: sessionId });
 
         await logAudit(user.id, "LOGIN_SUCCESS", req);
 
@@ -337,11 +339,14 @@ export async function authRoutes(app: FastifyInstance) {
             return reply.status(401).send({ message: "Session invalide. Reconnectez-vous." });
         }
 
-        const newRefreshToken = await rotateRefreshToken(result.sessionId);
-        const newAccessToken  = await reply.jwtSign(
-            { sub: result.userId, email: result.email },
-            { expiresIn: "15m" }
-        );
+        // null : un autre rafraîchissement avec le même cookie vient de
+        // tourner la session. Pas de clearCookie ici - sa réponse pose déjà
+        // le nouveau cookie, l'effacer déconnecterait le navigateur.
+        const newRefreshToken = await rotateRefreshToken(result);
+        if (!newRefreshToken) {
+            return reply.status(401).send({ message: "Session invalide. Reconnectez-vous." });
+        }
+        const newAccessToken = await signAccessToken(reply, { sub: result.userId, email: result.email, sid: result.sessionId });
 
         // `email` permet au client de vérifier que ce rafraîchissement
         // correspond bien au compte qu'il croit avoir en mémoire, avant de
@@ -376,10 +381,26 @@ export async function authRoutes(app: FastifyInstance) {
 // MIDDLEWARE
 // ─────────────────────────────────────────────────────────
 
+function signAccessToken(reply: FastifyReply, payload: JwtPayload): Promise<string> {
+    return reply.jwtSign(payload, { expiresIn: "15m" });
+}
+
+/**
+ * Exige un access token valide ET dont la session existe encore : une
+ * déconnexion, une révocation depuis la page Sessions ou un changement de
+ * mot de passe invalident aussitôt les jetons déjà émis, sans attendre
+ * leurs 15 minutes d'expiration.
+ */
 export async function requireAuth(req: FastifyRequest, reply: FastifyReply): Promise<void> {
     try {
         await req.jwtVerify();
     } catch {
         reply.status(401).send({ message: "Non authentifié." });
+        return;
+    }
+
+    const { sub, sid } = req.user as Partial<JwtPayload>;
+    if (!sub || !sid || !(await findActiveSession(sid, sub))) {
+        reply.status(401).send({ message: "Session expirée." });
     }
 }

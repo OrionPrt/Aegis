@@ -21,6 +21,28 @@ const MAX_SESSIONS  = 5; // sessions simultanées max par utilisateur
 // routes/auth.ts pour aligner le maxAge du cookie sur cette même durée.
 export const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
+// Durée de vie maximale d'une session, rotations comprises : sans plafond,
+// une session utilisée au moins une fois par jour ne s'éteindrait jamais.
+export const SESSION_ABSOLUTE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+// Délai pendant lequel l'ancien refresh token peut encore arriver sans être
+// pris pour un vol : deux requêtes parties en même temps avec le même cookie.
+export const REFRESH_REUSE_GRACE_MS = 30 * 1000;
+
+/** Session valide retournée par validateRefreshToken / findActiveSession. */
+export interface ActiveSession {
+    sessionId:   string;
+    userId:      string;
+    email:       string;
+    lookupToken: string;
+    createdAt:   Date;
+}
+
+/** Une session n'est plus utilisable après son expiration glissante ou absolue. */
+function isExpired(session: { expiresAt: Date; createdAt: Date }, now = Date.now()): boolean {
+    return session.expiresAt.getTime() <= now || session.createdAt.getTime() + SESSION_ABSOLUTE_TTL_MS <= now;
+}
+
 // ─────────────────────────────────────────────────────────
 // UTILITAIRES
 // ─────────────────────────────────────────────────────────
@@ -106,12 +128,13 @@ export async function logAudit(
 /**
  * Crée une nouvelle session pour un utilisateur.
  * Supprime les sessions expirées et limite à MAX_SESSIONS actives.
- * Retourne le refresh token en clair (à envoyer dans le cookie httpOnly).
+ * Retourne le refresh token en clair (à envoyer dans le cookie httpOnly) et
+ * l'id de la session, porté par l'access token (claim `sid`).
  */
 export async function createSession(
     userId: string,
     req: FastifyRequest
-): Promise<string> {
+): Promise<{ refreshToken: string; sessionId: string }> {
     const { token: refreshToken, lookupToken, secretToken } = generateRefreshToken();
     const refreshHash  = await bcrypt.hash(secretToken, BCRYPT_ROUNDS);
     const expiresAt    = new Date(Date.now() + SESSION_TTL_MS);
@@ -135,7 +158,7 @@ export async function createSession(
         });
     }
 
-    await prisma.session.create({
+    const session = await prisma.session.create({
         data: {
             userId,
             lookupToken,
@@ -144,9 +167,10 @@ export async function createSession(
             ipAddress:        getIp(req),
             expiresAt,
         },
+        select: { id: true },
     });
 
-    return refreshToken;
+    return { refreshToken, sessionId: session.id };
 }
 
 /**
@@ -155,62 +179,94 @@ export async function createSession(
  *
  * Complexité : O(1) - lookup par index UNIQUE sur lookupToken,
  * puis un seul bcrypt.compare sur la session trouvée.
- * (Avant : O(n) - scan de toutes les sessions actives)
+ *
+ * Un token qui correspond à l'AVANT-dernière rotation d'une session est un
+ * token déjà échangé : passé REFRESH_REUSE_GRACE_MS, c'est un vol rejoué et
+ * la session est révoquée (le voleur comme la victime doivent se reconnecter).
  */
-export async function validateRefreshToken(
-    rawToken: string
-): Promise<{ sessionId: string; userId: string; email: string } | null> {
-    // 1. Parser le token - format : "lookupToken.secretToken"
+export async function validateRefreshToken(rawToken: string): Promise<ActiveSession | null> {
     const parsed = parseRefreshToken(rawToken);
     if (!parsed) return null;
 
-    // 2. Lookup O(1) via l'index UNIQUE - une seule session candidate
     const session = await prisma.session.findUnique({
         where:   { lookupToken: parsed.lookupToken },
         include: { user: { select: { id: true, email: true } } },
     });
 
-    // 3. Session introuvable ou expirée
-    if (!session || session.expiresAt <= new Date()) return null;
+    if (!session) {
+        await revokeOnReplay(parsed.lookupToken);
+        return null;
+    }
+    if (isExpired(session)) return null;
 
-    // 4. Vérification cryptographique du secretToken
+    // Vérification cryptographique du secret
     const match = await bcrypt.compare(parsed.secretToken, session.refreshTokenHash);
     if (!match) return null;
 
-    // 5. Mise à jour de lastUsedAt
     await prisma.session.update({
         where: { id: session.id },
         data:  { lastUsedAt: new Date() },
     });
 
     return {
-        sessionId: session.id,
-        userId:    session.user.id,
-        email:     session.user.email,
+        sessionId:   session.id,
+        userId:      session.user.id,
+        email:       session.user.email,
+        lookupToken: session.lookupToken,
+        createdAt:   session.createdAt,
     };
+}
+
+/** Révoque la session dont `lookupToken` était le token précédent, hors délai de grâce. */
+async function revokeOnReplay(lookupToken: string): Promise<void> {
+    const replayed = await prisma.session.findUnique({
+        where:  { previousLookupToken: lookupToken },
+        select: { id: true, rotatedAt: true },
+    });
+    if (!replayed?.rotatedAt) return;
+    if (Date.now() - replayed.rotatedAt.getTime() < REFRESH_REUSE_GRACE_MS) return;
+    await revokeSession(replayed.id);
+}
+
+/**
+ * Indique si la session existe encore, appartient à cet utilisateur et n'a
+ * pas expiré. Utilisée par requireAuth : un access token ne vaut que tant
+ * que sa session existe.
+ */
+export async function findActiveSession(sessionId: string, userId: string): Promise<boolean> {
+    const session = await prisma.session.findUnique({
+        where:  { id: sessionId },
+        select: { userId: true, expiresAt: true, createdAt: true },
+    });
+    return !!session && session.userId === userId && !isExpired(session);
 }
 
 /**
  * Rotation du refresh token - invalide l'ancien et crée un nouveau.
  * Appelé à chaque rafraîchissement de l'access token.
+ *
+ * Conditionnée au token présenté : de deux rafraîchissements simultanés avec
+ * le même cookie, un seul tourne la session, l'autre reçoit null.
  */
-export async function rotateRefreshToken(
-    sessionId: string,
-): Promise<string> {
+export async function rotateRefreshToken(session: ActiveSession): Promise<string | null> {
     const { token: newToken, lookupToken: newLookupToken, secretToken: newSecretToken } = generateRefreshToken();
-    const newHash  = await bcrypt.hash(newSecretToken, BCRYPT_ROUNDS);
+    const newHash = await bcrypt.hash(newSecretToken, BCRYPT_ROUNDS);
+    const now     = Date.now();
+    const absoluteEnd = session.createdAt.getTime() + SESSION_ABSOLUTE_TTL_MS;
 
-    await prisma.session.update({
-        where: { id: sessionId },
+    const { count } = await prisma.session.updateMany({
+        where: { id: session.sessionId, lookupToken: session.lookupToken },
         data:  {
-            lookupToken:      newLookupToken,
-            refreshTokenHash: newHash,
-            lastUsedAt:       new Date(),
-            expiresAt:        new Date(Date.now() + SESSION_TTL_MS),
+            lookupToken:         newLookupToken,
+            refreshTokenHash:    newHash,
+            previousLookupToken: session.lookupToken,
+            rotatedAt:           new Date(now),
+            lastUsedAt:          new Date(now),
+            expiresAt:           new Date(Math.min(now + SESSION_TTL_MS, absoluteEnd)),
         },
     });
 
-    return newToken;
+    return count === 1 ? newToken : null;
 }
 
 /**

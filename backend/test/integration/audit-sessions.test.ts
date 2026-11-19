@@ -34,7 +34,7 @@ describe("session lifecycle (lib/audit.ts)", () => {
         emails.push(email);
         const user = await makeUser(email);
 
-        const token = await createSession(user.id, mockReq());
+        const { refreshToken: token } = await createSession(user.id, mockReq());
         const result = await validateRefreshToken(token);
 
         expect(result).not.toBeNull();
@@ -52,11 +52,11 @@ describe("session lifecycle (lib/audit.ts)", () => {
         emails.push(email);
         const user = await makeUser(email);
 
-        const oldToken = await createSession(user.id, mockReq());
+        const { refreshToken: oldToken } = await createSession(user.id, mockReq());
         const validated = await validateRefreshToken(oldToken);
         expect(validated).not.toBeNull();
 
-        const newToken = await rotateRefreshToken(validated!.sessionId);
+        const newToken = (await rotateRefreshToken(validated!))!;
 
         expect(await validateRefreshToken(oldToken)).toBeNull();
         const revalidated = await validateRefreshToken(newToken);
@@ -68,7 +68,7 @@ describe("session lifecycle (lib/audit.ts)", () => {
         emails.push(email);
         const user = await makeUser(email);
 
-        const token = await createSession(user.id, mockReq());
+        const { refreshToken: token } = await createSession(user.id, mockReq());
         const { sessionId } = (await validateRefreshToken(token))!;
 
         await revokeSession(sessionId);
@@ -97,7 +97,7 @@ describe("session lifecycle (lib/audit.ts)", () => {
         // MAX_SESSIONS = 5 (lib/audit.ts) - la 6e création doit faire tomber la plus ancienne.
         const tokens: string[] = [];
         for (let i = 0; i < 6; i++) {
-            tokens.push(await createSession(user.id, mockReq()));
+            tokens.push((await createSession(user.id, mockReq())).refreshToken);
             // Garantit un ordre createdAt strictement croissant sur une résolution
             // temporelle grossière (certains environnements de test arrondissent).
             await new Promise((r) => setTimeout(r, 5));
