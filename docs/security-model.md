@@ -132,7 +132,8 @@ Deux couches complémentaires :
     compilation WebAssembly d'Argon2id via `hash-wasm` - plus restrictif que
     `'unsafe-eval'` qui autoriserait aussi `eval()`/`Function()`),
     `connect-src` ouvert vers `api.pwnedpasswords.com` (vérification de fuites
-    opt-in) et les polices Google Fonts,
+    opt-in) uniquement ; `font-src` et `style-src` limités à `'self'`, les
+    polices étant servies par le site (`frontend/public/fonts`),
   - `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
     `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`
     (caméra/micro/géoloc désactivés), `Strict-Transport-Security` (HSTS,
