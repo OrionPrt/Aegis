@@ -18,6 +18,9 @@ model User {
   saltBase64       String
   vaultData        String?
   vaultIv          String?
+  // Incrémenté à chaque écriture du coffre : un client doit envoyer la
+  // version dont il part, sinon la sauvegarde est refusée (409).
+  vaultVersion     Int        @default(0)
   failedAttempts   Int        @default(0)
   lockedUntil      DateTime?
   createdAt        DateTime   @default(now())

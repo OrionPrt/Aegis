@@ -195,10 +195,26 @@ describe("changeMasterPassword / deleteAccount (dedicated fetch, no auto-retry)"
             .mockResolvedValueOnce(jsonResponse({ message: "Mot de passe actuel incorrect." }, 401)); // POST /auth/change-password
         vi.stubGlobal("fetch", fetchMock);
 
-        await expect(changeMasterPassword("WrongPassword!", "NewPassword!", [])).rejects.toThrow(AuthError);
+        await expect(changeMasterPassword("WrongPassword!", "NewPassword!", [], 0)).rejects.toThrow(AuthError);
         // Exactement 2 appels réseau - jamais de retry automatique qui
         // compterait deux fois la même tentative échouée côté serveur.
         expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("changeMasterPassword sends the vault version the re-encrypted entries come from", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok", expiresAt: FAR_FUTURE }, 201)));
+        await register("user@example.com", "MasterPassw0rd!");
+
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(jsonResponse({ saltBase64: SALT }))
+            .mockResolvedValueOnce(jsonResponse({ message: "ok" }, 200));
+        vi.stubGlobal("fetch", fetchMock);
+
+        await changeMasterPassword("MasterPassw0rd!", "NewMasterPassw0rd!", [], 7);
+
+        const body = JSON.parse(fetchMock.mock.calls[1][1].body);
+        expect(body.baseVersion).toBe(7);
+        expect(body.vault.iv).toBeTruthy();
     });
 
     it("deleteAccount re-derives the auth key from the freshly typed password, not the one in memory", async () => {

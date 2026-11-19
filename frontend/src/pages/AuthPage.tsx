@@ -10,7 +10,8 @@ import { useNavigate, useSearchParams, useLocation, Link } from "react-router-do
 import { Shield, Eye, EyeOff, Loader2, AlertTriangle, KeyRound, Lock, ShieldCheck, Code2 } from "lucide-react";
 import { login, register, AuthError } from "../lib/auth-client";
 import type { LoginRedirectState } from "../components/ProtectedRoute";
-import { evaluatePasswordStrength } from "../lib/crypto";
+import { assessMasterPassword, guessesToBits, rejectionMessage, MIN_MASTER_PASSWORD_LENGTH } from "../lib/password-strength";
+import { useMasterPasswordStrength } from "../hooks/useMasterPasswordStrength";
 import "./AuthPage.css";
 
 // ─────────────────────────────────────────────────────────
@@ -44,7 +45,8 @@ export default function AuthPage() {
     const [error, setError]         = useState<string | null>(null);
     const [argonStep, setArgonStep] = useState<string | null>(null);
 
-    const strength = form.password ? evaluatePasswordStrength(form.password) : null;
+    const assessment = useMasterPasswordStrength(mode === "register" ? form.password : "", [form.email]);
+    const strength = assessment && { score: assessment.score, entropy: guessesToBits(assessment.guessesLog10) };
     const strengthColors = ["#C85050", "#E8803A", "#C9A84C", "#70B870", "#50C890"];
 
     function update(field: keyof FormState, value: string) {
@@ -66,10 +68,8 @@ export default function AuthPage() {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "Email invalide.";
 
         if (mode === "register") {
-            if (form.password.length < 12)
-                return "Le mot de passe maître doit faire au moins 12 caractères.";
-            if (strength && strength.score < 2)
-                return "Mot de passe trop faible. Ajoutez des majuscules, chiffres et symboles.";
+            if (form.password.length < MIN_MASTER_PASSWORD_LENGTH)
+                return `Le mot de passe maître doit faire au moins ${MIN_MASTER_PASSWORD_LENGTH} caractères.`;
             if (form.password !== form.confirmPassword)
                 return "Les mots de passe ne correspondent pas.";
         }
@@ -89,6 +89,14 @@ export default function AuthPage() {
         setError(null);
 
         try {
+            if (mode === "register") {
+                const verdict = await assessMasterPassword(form.password, [form.email]);
+                if (!verdict.acceptable) {
+                    setError(rejectionMessage(verdict, form.password));
+                    return;
+                }
+            }
+
             if (mode === "login") {
                 // Argon2id prend ~1-3s — on informe l'utilisateur
                 setArgonStep("Dérivation de la clé en cours…");

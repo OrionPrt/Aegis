@@ -221,6 +221,8 @@ export interface ChangePasswordPayload {
     currentAuthKeyHex: string;
     newAuthKeyHex:     string;
     vault:             EncryptedPayload;
+    /** Version du coffre dont viennent les entrées rechiffrées (409 si dépassée). */
+    baseVersion:       number;
 }
 
 /**
@@ -238,11 +240,15 @@ export interface ChangePasswordPayload {
  *
  * @param vaultEntries - Les entrées du vault actuellement en mémoire (déjà
  *                       déchiffrées), à rechiffrer avec la nouvelle clé
+ * @param baseVersion  - Version du coffre dont viennent ces entrées : le
+ *                       serveur refuse (409) si un autre appareil a sauvegardé
+ *                       depuis, plutôt que de perdre ses changements
  */
 export async function changeMasterPassword(
     currentPassword: string,
     newPassword: string,
-    vaultEntries: VaultEntry[]
+    vaultEntries: VaultEntry[],
+    baseVersion: number
 ): Promise<void> {
     const session = getSession();
     if (!session) throw new AuthError("Session expirée.", 401);
@@ -261,6 +267,7 @@ export async function changeMasterPassword(
         currentAuthKeyHex: currentKeys.authKeyHex,
         newAuthKeyHex:     newKeys.authKeyHex,
         vault,
+        baseVersion,
     };
 
     // Requête dédiée (pas apiFetch) : apiFetch relance automatiquement toute

@@ -25,6 +25,21 @@ describe("checkPasswordPwned", () => {
         expect(calledUrl).toBe("https://api.pwnedpasswords.com/range/5BAA6");
     });
 
+    it("asks for padded responses so their size does not reveal the queried prefix", async () => {
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => "" });
+        vi.stubGlobal("fetch", fetchMock);
+
+        await checkPasswordPwned(PASSWORD);
+
+        const options = fetchMock.mock.calls[0][1] as RequestInit;
+        expect(new Headers(options.headers).get("Add-Padding")).toBe("true");
+    });
+
+    it("treats a padding line (count 0) as not found", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => `${SHA1_SUFFIX}:0\r\nAAAA:1` }));
+        expect(await checkPasswordPwned(PASSWORD)).toBe(0);
+    });
+
     it("returns the leak count when the suffix matches a returned line", async () => {
         const fetchMock = vi.fn().mockResolvedValue({
             ok: true,
