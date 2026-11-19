@@ -6,9 +6,10 @@
  */
 
 import { useState } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation, Link } from "react-router-dom";
 import { Shield, Eye, EyeOff, Loader2, AlertTriangle, KeyRound, Lock, ShieldCheck, Code2 } from "lucide-react";
 import { login, register, AuthError } from "../lib/auth-client";
+import type { LoginRedirectState } from "../components/ProtectedRoute";
 import { evaluatePasswordStrength } from "../lib/crypto";
 import "./AuthPage.css";
 
@@ -30,6 +31,7 @@ interface FormState {
 
 export default function AuthPage() {
     const navigate = useNavigate();
+    const lockedForInactivity = (useLocation().state as LoginRedirectState | null)?.lockReason === "inactivity";
 
     // Le mode vit dans l'URL (/login?mode=register) : en revenant d'une page
     // légale ouverte depuis l'inscription, on retrouve le bon onglet.
@@ -259,6 +261,14 @@ export default function AuthPage() {
                             <div className="argon-notice">
                                 <Loader2 size={14} strokeWidth={2} className="argon-spinner" />
                                 <span>{argonStep} (~2s)</span>
+                            </div>
+                        )}
+
+                        {/* Retour après verrouillage automatique */}
+                        {lockedForInactivity && !error && (
+                            <div className="auth-notice" role="status">
+                                <Lock size={14} strokeWidth={2} /> Coffre verrouillé après une période
+                                d'inactivité. Saisissez votre mot de passe maître pour le rouvrir.
                             </div>
                         )}
 

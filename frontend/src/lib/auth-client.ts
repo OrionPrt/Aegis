@@ -61,6 +61,24 @@ export interface SaltResponse {
 
 let _session: AuthSession | null = null;
 
+type SessionListener = () => void;
+const sessionListeners = new Set<SessionListener>();
+
+/**
+ * Prévient `listener` à chaque ouverture ou fermeture de session (pas au
+ * simple renouvellement du jeton). Retourne la fonction de désabonnement -
+ * forme attendue par useSyncExternalStore.
+ */
+export function subscribeSession(listener: SessionListener): () => void {
+    sessionListeners.add(listener);
+    return () => { sessionListeners.delete(listener); };
+}
+
+function setSession(next: AuthSession | null): void {
+    _session = next;
+    for (const listener of sessionListeners) listener();
+}
+
 export function getSession(): AuthSession | null {
     return _session;
 }
@@ -71,7 +89,8 @@ export function isAuthenticated(): boolean {
 }
 
 export function clearSession(): void {
-    _session = null;
+    if (_session === null) return;
+    setSession(null);
 }
 
 // ─────────────────────────────────────────────────────────
@@ -114,13 +133,14 @@ export async function register(
     const { accessToken, expiresAt } = response as AuthTokens & { expiresAt: number };
 
     // 4. Session en mémoire uniquement
-    _session = {
+    const session: AuthSession = {
         tokens: { accessToken, expiresAt },
         keys,
         email: email.toLowerCase().trim(),
     };
+    setSession(session);
 
-    return _session;
+    return session;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -166,13 +186,14 @@ export async function login(
     const { accessToken, expiresAt } = response as AuthTokens & { expiresAt: number };
 
     // 4. Session en mémoire
-    _session = {
+    const session: AuthSession = {
         tokens: { accessToken, expiresAt },
         keys,
         email: normalizedEmail,
     };
+    setSession(session);
 
-    return _session;
+    return session;
 }
 
 // ─────────────────────────────────────────────────────────

@@ -116,7 +116,12 @@ export default function VaultPage() {
     }
 
     async function handleLogout() {
-        await logout();
+        try {
+            await logout();
+        } catch {
+            // Hors ligne : la session locale est déjà effacée par logout(),
+            // celle du serveur expirera d'elle-même.
+        }
         navigate("/login");
     }
 

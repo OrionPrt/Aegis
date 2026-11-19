@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
-    register, login, logout, clearSession, getSession, isAuthenticated,
+    register, login, logout, clearSession, getSession, isAuthenticated, subscribeSession,
     apiFetch, changeMasterPassword, deleteAccount, AuthError,
 } from "./auth-client.js";
 
@@ -42,6 +42,19 @@ describe("register / login / session state", () => {
         expect(session.tokens.accessToken).toBe("tok-2");
         expect(fetchMock.mock.calls[0][0]).toContain("/auth/salt?email=");
         expect(fetchMock.mock.calls[1][0]).toContain("/auth/login");
+    });
+
+    it("notifies subscribers when a session starts and when it ends", async () => {
+        const listener = vi.fn();
+        const unsubscribe = subscribeSession(listener);
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "t", expiresAt: FAR_FUTURE }, 201)));
+
+        await register("user@example.com", "MasterPassw0rd!");
+        clearSession();
+        unsubscribe();
+        clearSession();
+
+        expect(listener).toHaveBeenCalledTimes(2);
     });
 
     it("clearSession() makes isAuthenticated() false and getSession() null", async () => {

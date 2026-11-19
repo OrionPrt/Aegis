@@ -48,7 +48,7 @@ masterPassword + email + salt
 | Élément | Durée de vie | Stockage |
 |---|---|---|
 | `accessToken` (JWT HS256) | 15 minutes | Mémoire JS uniquement (`_session` dans `auth-client.ts`) |
-| `masterKey` (clé de déchiffrement) | Jusqu'à fermeture/rechargement de l'onglet | Mémoire JS uniquement, jamais persistée |
+| `masterKey` (clé de déchiffrement) | Jusqu'à fermeture/rechargement de l'onglet, ou verrouillage automatique : 10 min sans activité, 5 min en arrière-plan (`useIdleLock`) | Mémoire JS uniquement, jamais persistée |
 | Cookie `aegis_rt` (refresh token) | Session serveur : 1 jour (`SESSION_TTL_MS`) | Cookie `httpOnly`, `Secure`, `SameSite=Strict`, scope `/api/auth` |
 
 Points importants :
