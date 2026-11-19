@@ -1,17 +1,14 @@
 import { useState } from "react";
-import { ArrowLeft, Check, Copy, ExternalLink, Eye, EyeOff, Pencil, Shield, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, Eye, EyeOff, Pencil, Shield, Trash2 } from "lucide-react";
 import { evaluatePasswordStrength } from "../../lib/crypto";
+import { safeHttpUrl } from "../../lib/url";
 import CardDetail from "./CardDetail";
 import Field from "./Field";
 import StrengthBar from "./StrengthBar";
 import TotpField from "./TotpField";
 import { formatDate, getInitial } from "./format";
 import type { CopyToClipboard, VaultEntryExtended } from "./types";
-
-/** Durée du retour visuel « copié » sur un bouton de copie. */
-const COPIED_FEEDBACK_MS = 2000;
-/** Délai avant effacement automatique du presse-papier. */
-const CLIPBOARD_CLEAR_MS = 30_000;
+import { useCopyFeedback } from "./useCopyFeedback";
 
 interface EntryDetailProps {
     entry: VaultEntryExtended;
@@ -22,15 +19,8 @@ interface EntryDetailProps {
 }
 
 export default function EntryDetail({ entry, saving, onBack, onEdit, onDelete }: EntryDetailProps) {
-    const [copied, setCopied] = useState<string | null>(null);
-
-    async function copyToClipboard(text: string, field: string) {
-        await navigator.clipboard.writeText(text);
-        setCopied(field);
-        setTimeout(() => setCopied(null), COPIED_FEEDBACK_MS);
-        // Effacement automatique du presse-papier après 30s
-        setTimeout(() => navigator.clipboard.writeText(""), CLIPBOARD_CLEAR_MS);
-    }
+    // Presse-papiers effacé automatiquement 30 s après la dernière copie (lib/clipboard.ts).
+    const { copied, copyError, copy: copyToClipboard } = useCopyFeedback();
 
     return (
         <aside className="vault-detail">
@@ -40,6 +30,12 @@ export default function EntryDetail({ entry, saving, onBack, onEdit, onDelete }:
             <DetailHeader entry={entry} />
 
             <div className="detail-body">
+                {copyError && (
+                    <div className="form-error" role="alert">
+                        <AlertTriangle size={14} strokeWidth={2} /> {copyError}
+                    </div>
+                )}
+
                 {entry.category === "login" && (
                     <LoginDetail entry={entry} copied={copied} copyToClipboard={copyToClipboard} />
                 )}
@@ -104,10 +100,9 @@ function DetailHeader({ entry }: { entry: VaultEntryExtended }) {
                 <div className={`detail-icon cat-${entry.category}`}>{getInitial(entry)}</div>
                 <div>
                     <div className="detail-name">{entry.label}</div>
-                    {entry.url && (() => {
-                        try { return <div className="detail-url">{new URL(entry.url).hostname}</div>; }
-                        catch { return <div className="detail-url">{entry.url}</div>; }
-                    })()}
+                    {entry.url && (
+                        <div className="detail-url">{hostnameOf(entry.url) ?? entry.url}</div>
+                    )}
                 </div>
             </div>
         </div>
@@ -178,21 +173,7 @@ function LoginDetail({ entry, copied, copyToClipboard }: CopyableProps & { entry
                 />
             )}
 
-            {entry.url && (
-                <Field label="URL">
-                    <div className="field-value-row">
-                        <a
-                            className="field-link"
-                            href={entry.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            {entry.url}
-                        </a>
-                        <button className="icon-btn"><ExternalLink size={13} strokeWidth={2} /></button>
-                    </div>
-                </Field>
-            )}
+            {entry.url && <UrlField url={entry.url} />}
         </>
     );
 }
@@ -214,6 +195,42 @@ function NotesField({ notes, copied, copyToClipboard }: CopyableProps & { notes:
                     <RevealButton revealed={showNotes} onToggle={() => setShowNotes((v) => !v)} />
                     <CopyButton field="notes" value={notes} copied={copied} copyToClipboard={copyToClipboard} />
                 </div>
+            </div>
+        </Field>
+    );
+}
+
+/** Nom d'hôte d'une adresse web, ou null si ce n'en est pas une. */
+function hostnameOf(url: string): string | null {
+    const safe = safeHttpUrl(url);
+    return safe ? new URL(safe).hostname : null;
+}
+
+/**
+ * Seules les adresses http(s) deviennent des liens : toute autre valeur
+ * (javascript:, data:…) reste du texte.
+ */
+function UrlField({ url }: { url: string }) {
+    const safe = safeHttpUrl(url);
+    return (
+        <Field label="URL">
+            <div className="field-value-row">
+                {safe ? (
+                    <>
+                        <a className="field-link" href={safe} target="_blank" rel="noopener noreferrer">
+                            {url}
+                        </a>
+                        <button
+                            className="icon-btn"
+                            title="Ouvrir le site"
+                            onClick={() => window.open(safe, "_blank", "noopener,noreferrer")}
+                        >
+                            <ExternalLink size={13} strokeWidth={2} />
+                        </button>
+                    </>
+                ) : (
+                    <span className="field-mono">{url}</span>
+                )}
             </div>
         </Field>
     );

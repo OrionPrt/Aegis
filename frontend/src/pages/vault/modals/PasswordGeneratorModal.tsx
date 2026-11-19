@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Check, Copy, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, Check, Copy, RefreshCw, X } from "lucide-react";
+import { copySecret, COPY_FAILED_MESSAGE } from "../../../lib/clipboard";
 import { DEFAULT_GENERATOR_SETTINGS, evaluatePasswordStrength, generatePassword } from "../../../lib/crypto";
 import type { GeneratorSettings } from "../../../lib/crypto";
 import GeneratorOptions from "../../GeneratorOptions";
@@ -7,14 +8,13 @@ import StrengthBar from "../StrengthBar";
 
 /** Durée du retour visuel « copié ». */
 const COPIED_FEEDBACK_MS = 2000;
-/** Délai avant effacement automatique du presse-papier. */
-const CLIPBOARD_CLEAR_MS = 30_000;
 
 /** Générateur de mot de passe autonome (outil de la barre latérale). */
 export default function PasswordGeneratorModal({ onClose }: { onClose: () => void }) {
     const [settings,       setSettings]       = useState<GeneratorSettings>(DEFAULT_GENERATOR_SETTINGS);
     const [nonce,          setNonce]          = useState(0);
     const [copiedPassword, setCopiedPassword] = useState<string | null>(null);
+    const [copyError,      setCopyError]      = useState<string | null>(null);
 
     // `nonce` n'est pas lu dans le callback : il force juste une nouvelle valeur au clic sur "Régénérer"
     const password = useMemo(
@@ -28,11 +28,17 @@ export default function PasswordGeneratorModal({ onClose }: { onClose: () => voi
         setNonce((n) => n + 1);
     }
 
+    // Presse-papiers effacé automatiquement 30 s après la dernière copie (lib/clipboard.ts).
     async function handleCopy() {
-        await navigator.clipboard.writeText(password);
+        try {
+            await copySecret(password);
+        } catch {
+            setCopyError(COPY_FAILED_MESSAGE);
+            return;
+        }
+        setCopyError(null);
         setCopiedPassword(password);
         setTimeout(() => setCopiedPassword((p) => (p === password ? null : p)), COPIED_FEEDBACK_MS);
-        setTimeout(() => navigator.clipboard.writeText(""), CLIPBOARD_CLEAR_MS);
     }
 
     const strength = evaluatePasswordStrength(password);
@@ -62,6 +68,12 @@ export default function PasswordGeneratorModal({ onClose }: { onClose: () => voi
                     </div>
 
                     <StrengthBar score={strength.score} entropy={strength.entropy} />
+
+                    {copyError && (
+                        <div className="form-error" role="alert">
+                            <AlertTriangle size={14} strokeWidth={2} /> {copyError}
+                        </div>
+                    )}
 
                     <GeneratorOptions value={settings} onChange={setSettings} />
 

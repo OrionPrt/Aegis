@@ -32,6 +32,11 @@ describe("validateEntryForm", () => {
         expect(validateEntryForm({ ...card, cardExpiry: "1230", cardCvv: "123" }, "4111111111111111", "visa")).toBeNull();
     });
 
+    it("refuses a non-web URL for a login", () => {
+        expect(validateEntryForm(loginForm({ url: "javascript:alert(1)" }), "", "unknown")).toMatch(/http/);
+        expect(validateEntryForm(loginForm({ url: "github.com" }), "", "unknown")).toBeNull();
+    });
+
     it("requires content for a note", () => {
         const note = { ...initialFormData(null, "note"), label: "Wifi" };
         expect(validateEntryForm(note, "", "unknown")).toBe("Le contenu de la note est requis.");
@@ -45,6 +50,10 @@ describe("toEntryData", () => {
         expect(data.username).toBe("me");
         expect(data.cardNumber).toBeUndefined();
         expect(data.cardBank).toBeUndefined();
+    });
+
+    it("stores a bare domain as an https address", () => {
+        expect(toEntryData(loginForm({ url: "github.com" }), "", "", "unknown").url).toBe("https://github.com");
     });
 
     it("upper-cases the cardholder and stores the card digits and brand", () => {
