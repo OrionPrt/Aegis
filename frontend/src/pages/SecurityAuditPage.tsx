@@ -19,7 +19,7 @@ import { evaluatePasswordStrength } from "../lib/crypto";
 import { checkExpiry } from "../lib/card";
 import { checkPasswordPwned } from "../lib/pwned";
 import { useVault } from "../hooks/useVault";
-import type { VaultEntryExtended } from "./VaultPage";
+import type { VaultEntryExtended } from "./vault/types";
 import "./SecurityAuditPage.css";
 
 const STALE_DAYS = 365;
