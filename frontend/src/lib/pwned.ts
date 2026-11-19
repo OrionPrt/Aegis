@@ -34,7 +34,10 @@ export async function checkPasswordPwned(password: string): Promise<number> {
     const prefix = hash.slice(0, 5);
     const suffix = hash.slice(5);
 
-    const res = await fetch(`${HIBP_RANGE_URL}${prefix}`);
+    // Add-Padding : l'API complète chaque réponse avec de fausses lignes
+    // (compteur à 0) pour que sa taille ne trahisse pas le préfixe demandé
+    // à un observateur du trafic chiffré.
+    const res = await fetch(`${HIBP_RANGE_URL}${prefix}`, { headers: { "Add-Padding": "true" } });
     if (!res.ok) throw new Error(`HIBP API error: ${res.status}`);
 
     const body = await res.text();

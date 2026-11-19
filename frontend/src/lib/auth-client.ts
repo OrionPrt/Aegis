@@ -61,6 +61,24 @@ export interface SaltResponse {
 
 let _session: AuthSession | null = null;
 
+type SessionListener = () => void;
+const sessionListeners = new Set<SessionListener>();
+
+/**
+ * Prévient `listener` à chaque ouverture ou fermeture de session (pas au
+ * simple renouvellement du jeton). Retourne la fonction de désabonnement -
+ * forme attendue par useSyncExternalStore.
+ */
+export function subscribeSession(listener: SessionListener): () => void {
+    sessionListeners.add(listener);
+    return () => { sessionListeners.delete(listener); };
+}
+
+function setSession(next: AuthSession | null): void {
+    _session = next;
+    for (const listener of sessionListeners) listener();
+}
+
 export function getSession(): AuthSession | null {
     return _session;
 }
@@ -71,7 +89,8 @@ export function isAuthenticated(): boolean {
 }
 
 export function clearSession(): void {
-    _session = null;
+    if (_session === null) return;
+    setSession(null);
 }
 
 // ─────────────────────────────────────────────────────────
@@ -114,13 +133,14 @@ export async function register(
     const { accessToken, expiresAt } = response as AuthTokens & { expiresAt: number };
 
     // 4. Session en mémoire uniquement
-    _session = {
+    const session: AuthSession = {
         tokens: { accessToken, expiresAt },
         keys,
         email: email.toLowerCase().trim(),
     };
+    setSession(session);
 
-    return _session;
+    return session;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -166,13 +186,14 @@ export async function login(
     const { accessToken, expiresAt } = response as AuthTokens & { expiresAt: number };
 
     // 4. Session en mémoire
-    _session = {
+    const session: AuthSession = {
         tokens: { accessToken, expiresAt },
         keys,
         email: normalizedEmail,
     };
+    setSession(session);
 
-    return _session;
+    return session;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -200,6 +221,8 @@ export interface ChangePasswordPayload {
     currentAuthKeyHex: string;
     newAuthKeyHex:     string;
     vault:             EncryptedPayload;
+    /** Version du coffre dont viennent les entrées rechiffrées (409 si dépassée). */
+    baseVersion:       number;
 }
 
 /**
@@ -217,11 +240,15 @@ export interface ChangePasswordPayload {
  *
  * @param vaultEntries - Les entrées du vault actuellement en mémoire (déjà
  *                       déchiffrées), à rechiffrer avec la nouvelle clé
+ * @param baseVersion  - Version du coffre dont viennent ces entrées : le
+ *                       serveur refuse (409) si un autre appareil a sauvegardé
+ *                       depuis, plutôt que de perdre ses changements
  */
 export async function changeMasterPassword(
     currentPassword: string,
     newPassword: string,
-    vaultEntries: VaultEntry[]
+    vaultEntries: VaultEntry[],
+    baseVersion: number
 ): Promise<void> {
     const session = getSession();
     if (!session) throw new AuthError("Session expirée.", 401);
@@ -240,6 +267,7 @@ export async function changeMasterPassword(
         currentAuthKeyHex: currentKeys.authKeyHex,
         newAuthKeyHex:     newKeys.authKeyHex,
         vault,
+        baseVersion,
     };
 
     // Requête dédiée (pas apiFetch) : apiFetch relance automatiquement toute

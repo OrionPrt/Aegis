@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN "vaultVersion" INTEGER NOT NULL DEFAULT 0;
