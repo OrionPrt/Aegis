@@ -38,6 +38,13 @@ const AES_KEY_LENGTH = 256;   // bits
 const IV_LENGTH      = 12;    // bytes — recommandé pour AES-GCM (96 bits)
 const SALT_LENGTH    = 32;    // bytes — sel aléatoire pour Argon2
 
+/**
+ * Octets convertis par appel à String.fromCharCode : chaque octet devient un
+ * argument de fonction, et les moteurs plafonnent leur nombre (V8 vers
+ * 125 000, JavaScriptCore à 65 536). 32 Ko reste sous toutes les limites.
+ */
+const BASE64_CHUNK_SIZE = 0x8000;
+
 // ─────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────
@@ -71,9 +78,14 @@ export interface VaultEntry {
 // UTILITAIRES
 // ─────────────────────────────────────────────────────────
 
-/** Convertit un ArrayBuffer en chaîne Base64 */
+/** Convertit un ArrayBuffer en chaîne Base64, par morceaux (voir BASE64_CHUNK_SIZE) */
 function bufferToBase64(buffer: ArrayBufferLike): string {
-    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    const bytes = new Uint8Array(buffer);
+    const chunks: string[] = [];
+    for (let offset = 0; offset < bytes.length; offset += BASE64_CHUNK_SIZE) {
+        chunks.push(String.fromCharCode(...bytes.subarray(offset, offset + BASE64_CHUNK_SIZE)));
+    }
+    return btoa(chunks.join(""));
 }
 
 /** Convertit une chaîne Base64 en Uint8Array */

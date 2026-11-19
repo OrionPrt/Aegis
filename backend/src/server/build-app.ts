@@ -10,7 +10,7 @@
  *    sans jamais écouter de port (le modèle serverless ne le permet pas)
  */
 
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import fastifyJwt from "@fastify/jwt";
 import fastifyCookie from "@fastify/cookie";
 import fastifyHelmet from "@fastify/helmet";
@@ -90,6 +90,16 @@ export async function buildApp(): Promise<FastifyInstance> {
         }
     });
 
+    // ─── Gestion des erreurs globales ─────────────────────────
+    // Déclaré AVANT l'enregistrement des routes : un plugin enregistré via
+    // `await app.register()` est chargé aussitôt et ne voit que le
+    // gestionnaire d'erreurs déjà en place à ce moment-là.
+    app.setErrorHandler((error: FastifyError, _req, reply) => {
+        app.log.error(error);
+        const statusCode = error.statusCode ?? 500;
+        reply.status(statusCode).send({ message: publicErrorMessage(error, statusCode) });
+    });
+
     // ─── Health check ─────────────────────────────────────────
     app.get("/api/health", async (_req, reply) => {
         return reply.send({ status: "ok" });
@@ -100,17 +110,17 @@ export async function buildApp(): Promise<FastifyInstance> {
     await app.register(vaultRoutes, { prefix: "/api/vault" });
     await app.register(sessionRoutes, { prefix: "/api/sessions" });
 
-    // ─── Gestion des erreurs globales ─────────────────────────
-    app.setErrorHandler((error, _req, reply) => {
-        app.log.error(error);
-        const message =
-            process.env.NODE_ENV === "production"
-                ? "Une erreur interne est survenue."
-                // @ts-ignore
-                : error.message;
-        // @ts-ignore
-        reply.status(error.statusCode ?? 500).send({ message });
-    });
-
     return app;
+}
+
+/**
+ * Message renvoyé au client pour une erreur non gérée par les routes.
+ * En production, jamais le message brut (il peut décrire l'implémentation) ;
+ * un corps trop volumineux garde un message explicite, l'utilisateur
+ * pouvant y remédier (coffre trop gros).
+ */
+export function publicErrorMessage(error: FastifyError, statusCode: number): string {
+    if (statusCode === 413) return "Le coffre est trop volumineux pour être sauvegardé.";
+    if (process.env.NODE_ENV !== "production") return error.message;
+    return statusCode < 500 ? "Requête invalide." : "Une erreur interne est survenue.";
 }

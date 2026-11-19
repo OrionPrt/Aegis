@@ -88,6 +88,43 @@ describe("/api/vault", () => {
         expect(res.statusCode).toBe(400);
     });
 
+    it("accepts a vault larger than Fastify's default 1 MiB body limit", async () => {
+        const email = uniqueEmail("vault-large");
+        emails.push(email);
+        const authKeyHex = fakeAuthKeyHex("vault-large");
+        await registerAndLogin(email, authKeyHex);
+        const token = await accessToken(email, authKeyHex);
+
+        const payload = { ciphertext: "A".repeat(2 * 1024 * 1024), iv: Buffer.from("123456789012").toString("base64") };
+        const putRes = await app.inject({
+            method: "PUT",
+            url: "/api/vault",
+            headers: { authorization: `Bearer ${token}` },
+            payload,
+        });
+        expect(putRes.statusCode).toBe(200);
+
+        const getRes = await app.inject({ method: "GET", url: "/api/vault", headers: { authorization: `Bearer ${token}` } });
+        expect(getRes.json().vault.ciphertext).toHaveLength(payload.ciphertext.length);
+    });
+
+    it("rejects a vault above the maximum size with 413 and a readable message", async () => {
+        const email = uniqueEmail("vault-toolarge");
+        emails.push(email);
+        const authKeyHex = fakeAuthKeyHex("vault-toolarge");
+        await registerAndLogin(email, authKeyHex);
+        const token = await accessToken(email, authKeyHex);
+
+        const res = await app.inject({
+            method: "PUT",
+            url: "/api/vault",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { ciphertext: "A".repeat(5 * 1024 * 1024), iv: Buffer.from("123456789012").toString("base64") },
+        });
+        expect(res.statusCode).toBe(413);
+        expect(res.json().message).toMatch(/trop volumineux/);
+    });
+
     describe("DELETE /api/vault (account deletion)", () => {
         it("requires a body with authKeyHex (400 without it)", async () => {
             const email = uniqueEmail("del-nobody");

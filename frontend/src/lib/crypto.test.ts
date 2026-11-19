@@ -65,6 +65,26 @@ describe("encryptVault / decryptVault", () => {
         expect(decrypted).toEqual(SAMPLE_ENTRIES);
     });
 
+    it("round-trips a vault larger than the engine's function-argument limit (~1 MB of JSON)", async () => {
+        // Un octet = un argument de String.fromCharCode si l'encodage base64
+        // n'est pas fait par morceaux : V8 lève une RangeError vers 125 000
+        // arguments, Safari/iOS plus tôt encore.
+        const { masterKey } = await deriveKeys("MasterPassw0rd!", "user@example.com", generateSalt());
+        const bigVault: VaultEntry[] = Array.from({ length: 2_000 }, (_, i) => ({
+            id: String(i),
+            label: `Entry ${i}`,
+            username: `user${i}@example.com`,
+            password: "p".repeat(32),
+            notes: "n".repeat(400),
+            createdAt: i,
+            updatedAt: i,
+        }));
+
+        const encrypted = await encryptVault(bigVault, masterKey);
+        expect(encrypted.ciphertext.length).toBeGreaterThan(1_000_000);
+        await expect(decryptVault(encrypted, masterKey)).resolves.toEqual(bigVault);
+    });
+
     it("uses a fresh random IV on every call (never reused)", async () => {
         const { masterKey } = await deriveKeys("MasterPassw0rd!", "user@example.com", generateSalt());
         const first = await encryptVault(SAMPLE_ENTRIES, masterKey);
