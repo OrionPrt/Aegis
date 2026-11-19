@@ -31,10 +31,10 @@
 | `DIRECT_URL` | URL Postgres directe (sans pooler) - utilisée uniquement par `prisma migrate deploy` | Oui |
 | `JWT_SECRET` | Secret de signature des access tokens (HS256) | Oui |
 | `COOKIE_SECRET` | Secret de signature des cookies (`@fastify/cookie`) | Oui |
-| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Accès Redis pour le rate limiting (`Redis.fromEnv()`) | Oui |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Accès Redis pour le rate limiting (`lib/rate-limit.ts`) | Oui - l'API refuse de démarrer en production sans eux |
 | `RESEND_API_KEY` | Envoi des emails de sécurité | Oui (vide accepté en dev pour désactiver l'envoi) |
 | `EMAIL_FROM` | Adresse d'expédition des emails (défaut : `Aegis <onboarding@resend.dev>`) | Non |
-| `AEGIS_DUMMY_SALT` | Sel factice pour l'anti-énumération sur `/auth/salt` (fallback intégré si absent) | Non |
+| `AEGIS_DUMMY_SALT` | Secret (32+ caractères aléatoires) dont dérivent les sels factices de `/auth/salt` pour les emails sans compte ; `JWT_SECRET` sert de repli s'il est absent | Recommandé |
 | `NODE_ENV` | `production` active les cookies `Secure` et masque le détail des erreurs internes | Non |
 | `PORT` | Port d'écoute en dev local uniquement (défaut `3000`) | Non |
 

@@ -7,6 +7,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import {
@@ -20,7 +21,8 @@ import {
     getUserAgent,
     SESSION_TTL_MS,
 } from "../lib/audit.js";
-import { sendPasswordChangedEmail, sendNewIpLoginEmail, sendAccountLockedEmail } from "../lib/email.js";
+import { sendPasswordChangedEmail, sendNewIpLoginEmail } from "../lib/email.js";
+import { clearAttempts, recordFailedAttempt, reserveAttempt, sendLocked } from "../lib/lockout.js";
 
 interface JwtPayload { sub: string; email: string; }
 
@@ -34,28 +36,36 @@ interface CookieOptions {
 
 const BCRYPT_ROUNDS       = 12;
 const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;
-export const MAX_FAILED_ATTEMPTS = 3;
-export const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
+const SALT_BYTES = 32;
 
-// Fallback base64 valide (32 octets) au cas où AEGIS_DUMMY_SALT ne serait pas
-// configuré - un fallback invalide casserait la dérivation de clé côté
-// client pour tout email inexistant, ce qui recrée exactement la fuite
-// d'énumération que ce faux sel est censé éviter (voir /salt ci-dessous).
-const FALLBACK_DUMMY_SALT = "Y7QRuESvdl/D1TFc/Cx1o91ji92diiRb+8PDhXcvozE=";
-
-// Lue à CHAQUE requête plutôt que mise en cache dans une const au chargement
-// du module : ce fichier est importé (via build-app.ts) avant que app.ts
-// n'appelle dotenv.config(), donc une const évaluée au chargement du module
-// capturerait toujours `undefined` et retomberait silencieusement sur le
-// fallback, y compris quand AEGIS_DUMMY_SALT est bien défini dans .env.
-function getDummySalt(): string {
-    return process.env.AEGIS_DUMMY_SALT ?? FALLBACK_DUMMY_SALT;
+/**
+ * Sel factice d'un email sans compte : HMAC de l'email par un secret serveur.
+ * Stable pour une adresse donnée (deux requêtes renvoient le même sel, comme
+ * pour un vrai compte) et différent d'une adresse à l'autre - un sel unique
+ * partagé par tous les emails inconnus suffirait à les reconnaître.
+ *
+ * Secret lu à chaque appel : ce module est importé avant que app.ts n'appelle
+ * dotenv.config().
+ */
+function fakeSaltFor(email: string): string {
+    const secret = process.env.AEGIS_DUMMY_SALT || process.env.JWT_SECRET;
+    if (!secret) throw new Error("AEGIS_DUMMY_SALT ou JWT_SECRET requis pour /auth/salt.");
+    return crypto.createHmac("sha256", secret).update(email).digest().subarray(0, SALT_BYTES).toString("base64");
 }
+
+const EmailSchema = z.string().email().max(254);
+
+/** Sel Argon2 de 32 octets en base64 (44 caractères, un "=" final). */
+const SaltSchema = z.string().regex(/^[A-Za-z0-9+/]{43}=$/, "salt must be 32 bytes of base64");
+
+const SaltQuerySchema = z.object({
+    email: z.string().toLowerCase().trim().pipe(EmailSchema),
+});
 
 const RegisterSchema = z.object({
     email:      z.string().email().max(254).toLowerCase().trim(),
     authKeyHex: z.string().length(64).regex(/^[0-9a-f]+$/),
-    saltBase64: z.string().min(32).max(64),
+    saltBase64: SaltSchema,
 });
 
 const LoginSchema = z.object({
@@ -138,18 +148,18 @@ export async function authRoutes(app: FastifyInstance) {
     // ── GET /api/auth/salt ──────────────────────────────────
 
     app.get("/salt", async (req: FastifyRequest, reply: FastifyReply) => {
-        const email = (req.query as Record<string, string>).email?.toLowerCase().trim();
-
-        if (!email || !z.string().email().safeParse(email).success) {
+        const parsed = SaltQuerySchema.safeParse(req.query);
+        if (!parsed.success) {
             return reply.status(400).send({ message: "Email invalide." });
         }
+        const { email } = parsed.data;
 
         const user = await prisma.user.findUnique({
             where:  { email },
             select: { saltBase64: true },
         });
 
-        const saltBase64 = user?.saltBase64 ?? getDummySalt();
+        const saltBase64 = user?.saltBase64 ?? fakeSaltFor(email);
         await new Promise((r) => setTimeout(r, 200 + Math.random() * 100));
 
         return reply.send({ saltBase64 });
@@ -166,43 +176,20 @@ export async function authRoutes(app: FastifyInstance) {
         const { email, authKeyHex } = parsed.data;
         const user = await prisma.user.findUnique({ where: { email } });
 
-        if (user?.lockedUntil && user.lockedUntil > new Date()) {
-            const retryAfter = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 1000);
-            return reply
-                .status(429)
-                .header("Retry-After", String(retryAfter))
-                .send({ message: `Compte bloqué. Réessayez dans ${retryAfter}s.` });
+        if (user) {
+            const retryAfter = await reserveAttempt(user.id);
+            if (retryAfter !== null) return sendLocked(reply, retryAfter);
         }
 
         const dummyHash = "$2b$12$invaliddummyhashfortimingattackmitigation000000000000";
         const isValid   = await bcrypt.compare(authKeyHex, user?.authKeyHash ?? dummyHash);
 
         if (!user || !isValid) {
-            if (user) {
-                const failedAttempts = user.failedAttempts + 1;
-                const justLocked     = failedAttempts >= MAX_FAILED_ATTEMPTS;
-                await prisma.user.update({
-                    where: { id: user.id },
-                    data: {
-                        failedAttempts,
-                        ...(justLocked && {
-                            lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS),
-                        }),
-                    },
-                });
-                await logAudit(user.id, "LOGIN_FAILED", req, { failedAttempts });
-                if (justLocked) {
-                    await sendAccountLockedEmail(user.email, { ipAddress: getIp(req), userAgent: getUserAgent(req) });
-                }
-            }
+            if (user) await recordFailedAttempt(user.id, user.email, req, "LOGIN_FAILED");
             return reply.status(401).send({ message: "Identifiants incorrects." });
         }
 
-        // Réinitialisation du compteur d'échecs
-        await prisma.user.update({
-            where: { id: user.id },
-            data:  { failedAttempts: 0, lockedUntil: null },
-        });
+        await clearAttempts(user.id);
 
         // Détection "nouvelle IP" - avant d'enregistrer CE login, pour savoir
         // s'il y a déjà eu une connexion réussie depuis cette IP auparavant.
@@ -272,31 +259,12 @@ export async function authRoutes(app: FastifyInstance) {
                 return reply.status(404).send({ message: "Utilisateur introuvable." });
             }
 
-            if (user.lockedUntil && user.lockedUntil > new Date()) {
-                const retryAfter = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 1000);
-                return reply
-                    .status(429)
-                    .header("Retry-After", String(retryAfter))
-                    .send({ message: `Compte bloqué. Réessayez dans ${retryAfter}s.` });
-            }
+            const retryAfter = await reserveAttempt(userId);
+            if (retryAfter !== null) return sendLocked(reply, retryAfter);
 
             const isValid = await bcrypt.compare(currentAuthKeyHex, user.authKeyHash);
             if (!isValid) {
-                const failedAttempts = user.failedAttempts + 1;
-                const justLocked     = failedAttempts >= MAX_FAILED_ATTEMPTS;
-                await prisma.user.update({
-                    where: { id: userId },
-                    data: {
-                        failedAttempts,
-                        ...(justLocked && {
-                            lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS),
-                        }),
-                    },
-                });
-                await logAudit(userId, "PASSWORD_CHANGE_ATTEMPT", req, { success: false });
-                if (justLocked) {
-                    await sendAccountLockedEmail(user.email, { ipAddress: getIp(req), userAgent: getUserAgent(req) });
-                }
+                await recordFailedAttempt(userId, user.email, req, "PASSWORD_CHANGE_ATTEMPT", { success: false });
                 return reply.status(401).send({ message: "Mot de passe actuel incorrect." });
             }
 

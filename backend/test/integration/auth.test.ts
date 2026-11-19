@@ -49,6 +49,15 @@ describe("/api/auth", () => {
             expect(res.statusCode).toBe(409);
         });
 
+        it("rejects a salt that is not 32 bytes of base64 with 400", async () => {
+            const res = await app.inject({
+                method: "POST",
+                url: "/api/auth/register",
+                payload: { email: uniqueEmail("badsalt"), authKeyHex: fakeAuthKeyHex(), saltBase64: "!".repeat(44) },
+            });
+            expect(res.statusCode).toBe(400);
+        });
+
         it("rejects a malformed payload with 400", async () => {
             const res = await app.inject({
                 method: "POST",
@@ -83,6 +92,25 @@ describe("/api/auth", () => {
 
         it("rejects an invalid email format with 400", async () => {
             const res = await app.inject({ method: "GET", url: "/api/auth/salt?email=not-an-email" });
+            expect(res.statusCode).toBe(400);
+        });
+
+        it("gives each unknown email its own fake salt, stable across calls (no shared dummy value)", async () => {
+            const salt = async (email: string) =>
+                (await app.inject({ method: "GET", url: `/api/auth/salt?email=${encodeURIComponent(email)}` })).json().saltBase64;
+            const ghostA = uniqueEmail("ghost-a");
+            const ghostB = uniqueEmail("ghost-b");
+
+            const [a1, a2, b] = [await salt(ghostA), await salt(ghostA), await salt(ghostB)];
+
+            expect(a1).toBe(a2);
+            expect(a1).not.toBe(b);
+            // Même forme qu'un vrai sel : 32 octets en base64.
+            expect(Buffer.from(a1, "base64")).toHaveLength(32);
+        });
+
+        it("rejects a repeated email parameter with 400 instead of crashing", async () => {
+            const res = await app.inject({ method: "GET", url: "/api/auth/salt?email=a@example.com&email=b@example.com" });
             expect(res.statusCode).toBe(400);
         });
     });
@@ -151,6 +179,47 @@ describe("/api/auth", () => {
 
             expect(res.statusCode).toBe(429);
             expect(res.headers["retry-after"]).toBeDefined();
+        });
+
+        it("counts simultaneous wrong attempts atomically: only 3 are checked before the lock", async () => {
+            const email = uniqueEmail("lockout-burst");
+            emails.push(email);
+            await register(email, fakeAuthKeyHex("burst"));
+
+            const results = await Promise.all(
+                Array.from({ length: 8 }, () => app.inject({
+                    method: "POST",
+                    url: "/api/auth/login",
+                    payload: { email, authKeyHex: fakeAuthKeyHex("wrong") },
+                })),
+            );
+
+            const statuses = results.map((r) => r.statusCode);
+            expect(statuses.filter((code) => code === 401)).toHaveLength(3);
+            expect(statuses.filter((code) => code === 429)).toHaveLength(5);
+            const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+            expect(user.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+        });
+
+        it("starts a fresh count once the lock has expired (one mistake does not re-lock)", async () => {
+            const email = uniqueEmail("lockout-expired");
+            emails.push(email);
+            await register(email, fakeAuthKeyHex("expired"));
+            await prisma.user.update({
+                where: { email },
+                data:  { failedAttempts: 3, lockedUntil: new Date(Date.now() - 1000) },
+            });
+
+            const res = await app.inject({
+                method: "POST",
+                url: "/api/auth/login",
+                payload: { email, authKeyHex: fakeAuthKeyHex("wrong") },
+            });
+
+            expect(res.statusCode).toBe(401);
+            const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+            expect(user.failedAttempts).toBe(1);
+            expect(user.lockedUntil).toBeNull();
         });
 
         it("resets the failed-attempts counter on a successful login", async () => {

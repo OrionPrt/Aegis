@@ -75,32 +75,62 @@ serveur) restent donc toujours synchronisées.
 
 ## Anti-énumération de comptes
 
-Objectif : qu'un attaquant ne puisse pas déterminer si un email est inscrit.
+Objectif : qu'un attaquant ne puisse pas déterminer si un email est inscrit
+à partir de la connexion.
 
 - **`GET /api/auth/salt`** retourne toujours un sel : celui de l'utilisateur
-  s'il existe, sinon un `getDummySalt()` valide en Base64 (configurable via
-  `AEGIS_DUMMY_SALT`, avec un fallback statique en dur). Un délai aléatoire
+  s'il existe, sinon un sel factice `HMAC-SHA256(AEGIS_DUMMY_SALT, email)`
+  tronqué à 32 octets. Il est stable pour une adresse (comme un vrai sel) et
+  différent d'une adresse à l'autre : un sel factice unique, partagé par tous
+  les emails inconnus, suffirait à les reconnaître. Un délai aléatoire
   (200-300 ms) est ajouté dans les deux cas pour uniformiser le timing.
 - **`POST /api/auth/login`** compare toujours contre un hash bcrypt, même si
   l'utilisateur n'existe pas (`dummyHash` codé en dur) - `bcrypt.compare` prend
   un temps constant qu'il y ait ou non un vrai compte, ce qui évite une
   différence de timing observable.
-- **`POST /api/auth/register`** sur un email déjà pris exécute quand même un
-  `bcrypt.hash` avant de répondre `409`, pour la même raison de constance de
-  timing.
 - Message d'erreur générique ("Identifiants incorrects") qu'il s'agisse d'un
   email inconnu ou d'un mauvais mot de passe.
+
+Limites connues, à fermer avec une vérification d'email à l'inscription
+(issue #24) :
+
+- **`POST /api/auth/register`** répond `409` sur un email déjà pris (le
+  `bcrypt.hash` exécuté avant égalise seulement le temps de réponse).
+- Seul un compte réel peut être bloqué : après 3 échecs, `/login` répond `429`
+  pour un compte existant et toujours `401` pour un email inconnu.
 
 ## Verrouillage de compte (brute-force)
 
 - `MAX_FAILED_ATTEMPTS = 3` tentatives échouées déclenchent un verrou de
-  `LOCKOUT_DURATION_MS = 15 minutes` (`User.lockedUntil`).
+  `LOCKOUT_DURATION_MS = 15 minutes` (`User.lockedUntil`), dans
+  `lib/lockout.ts`.
+- Chaque tentative est **réservée avant** la vérification bcrypt, par un
+  incrément atomique en base conditionné à `failedAttempts < 3` : des
+  requêtes envoyées en parallèle ne peuvent pas tester plus de 3 mots de
+  passe par fenêtre de blocage.
+- Une preuve correcte remet le compteur à zéro, un blocage expiré aussi :
+  une erreur isolée après le déblocage ne reverrouille pas le compte.
 - Le compteur est partagé entre `/login`, `/change-password` et
   `DELETE /api/vault` (suppression de compte) - toute action nécessitant une
   re-preuve du mot de passe incrémente le même compteur.
 - Un email de notification (`sendAccountLockedEmail`) est envoyé au moment où
   le verrou se déclenche (pas à chaque tentative).
 - Réponse `429` avec header `Retry-After` en secondes pendant le verrou.
+
+Le blocage reste déclenchable par quiconque connaît l'adresse (3 essais
+suffisent) : c'est le compromis assumé pour borner les essais en ligne.
+
+## Limitation de débit
+
+`lib/rate-limit.ts`, compteurs dans Upstash Redis (partagés entre les
+instances serverless) :
+
+- 100 requêtes/minute par IP sur toute l'API ;
+- 20 requêtes/minute par IP sur `POST /api/auth/login`, `POST /api/auth/register`
+  et `GET /api/auth/salt` ;
+- si Redis ne répond pas, ces trois routes répondent `503` plutôt que de
+  rester sans limite ; le reste de l'API continue de fonctionner ;
+- en production, l'API refuse de démarrer si Upstash n'est pas configuré.
 
 ## Réauthentification pour les actions destructrices
 
