@@ -5,7 +5,8 @@ import type { Category } from "./types";
 interface VaultTopbarProps {
     category: Category;
     saving: boolean;
-    hasError: boolean;
+    /** Dernière erreur de sauvegarde, affichée sous la barre. */
+    errorMessage: string | null;
     search: string;
     onSearchChange: (value: string) => void;
     onAdd: () => void;
@@ -17,7 +18,7 @@ interface VaultTopbarProps {
 
 /** Barre du haut de la liste : titre, état de sauvegarde, actions et recherche mobile. */
 export default function VaultTopbar({
-    category, saving, hasError, search, onSearchChange,
+    category, saving, errorMessage, search, onSearchChange,
     onAdd, onOpenGenerator, onOpenSecurityAudit, onOpenSessions, onLogout,
 }: VaultTopbarProps) {
     return (
@@ -26,7 +27,7 @@ export default function VaultTopbar({
                 <h1 className="topbar-title">{CATEGORY_LABELS[category]}</h1>
                 <div className="topbar-actions">
                     {saving && <span className="saving-indicator">Sauvegarde…</span>}
-                    {hasError && !saving && (
+                    {errorMessage && !saving && (
                         <span className="saving-indicator saving-indicator-danger">
                             <AlertTriangle size={12} strokeWidth={2} /> Erreur de sauvegarde
                         </span>
@@ -48,6 +49,12 @@ export default function VaultTopbar({
                     </button>
                 </div>
             </div>
+
+            {errorMessage && !saving && (
+                <div className="form-error vault-save-error" role="alert">
+                    <AlertTriangle size={14} strokeWidth={2} /> {errorMessage}
+                </div>
+            )}
 
             <div className="topbar-search-mobile">
                 <Search className="search-icon" size={14} strokeWidth={2} />

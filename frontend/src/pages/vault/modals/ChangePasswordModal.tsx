@@ -2,33 +2,33 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import Modal from "../../../components/Modal";
-import { AuthError, changeMasterPassword } from "../../../lib/auth-client";
-import { evaluatePasswordStrength } from "../../../lib/crypto";
+import { AuthError, changeMasterPassword, getSession } from "../../../lib/auth-client";
 import type { VaultEntry } from "../../../lib/crypto";
+import { assessMasterPassword, guessesToBits, rejectionMessage, MIN_MASTER_PASSWORD_LENGTH } from "../../../lib/password-strength";
+import { useMasterPasswordStrength } from "../../../hooks/useMasterPasswordStrength";
 import StrengthBar from "../StrengthBar";
-
-/** Longueur minimale du mot de passe maître, comme à l'inscription. */
-const MIN_MASTER_PASSWORD_LENGTH = 12;
 
 interface ChangePasswordModalProps {
     vaultEntries: VaultEntry[];
+    /** Version serveur du coffre dont viennent ces entrées. */
+    vaultVersion: number;
     onClose: () => void;
     onSuccess: () => void;
 }
 
-export default function ChangePasswordModal({ vaultEntries, onClose, onSuccess }: ChangePasswordModalProps) {
+export default function ChangePasswordModal({ vaultEntries, vaultVersion, onClose, onSuccess }: ChangePasswordModalProps) {
     const [currentPassword, setCurrentPassword] = useState("");
     const [newPassword,     setNewPassword]     = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error,   setError]   = useState<string | null>(null);
 
-    const strength = newPassword ? evaluatePasswordStrength(newPassword) : null;
+    const email = getSession()?.email ?? "";
+    const assessment = useMasterPasswordStrength(newPassword, [email]);
 
     function validate(): string | null {
         if (!currentPassword) return "Le mot de passe actuel est requis.";
-        if (newPassword.length < MIN_MASTER_PASSWORD_LENGTH) return "Le nouveau mot de passe doit faire au moins 12 caractères.";
-        if (strength && strength.score < 2) return "Nouveau mot de passe trop faible - ajoutez majuscules, chiffres et symboles.";
+        if (newPassword.length < MIN_MASTER_PASSWORD_LENGTH) return `Le nouveau mot de passe doit faire au moins ${MIN_MASTER_PASSWORD_LENGTH} caractères.`;
         if (newPassword !== confirmPassword) return "Les mots de passe ne correspondent pas.";
         if (newPassword === currentPassword) return "Le nouveau mot de passe doit être différent de l'actuel.";
         return null;
@@ -42,7 +42,13 @@ export default function ChangePasswordModal({ vaultEntries, onClose, onSuccess }
         setLoading(true);
         setError(null);
         try {
-            await changeMasterPassword(currentPassword, newPassword, vaultEntries);
+            const verdict = await assessMasterPassword(newPassword, [email]);
+            if (!verdict.acceptable) {
+                setError(rejectionMessage(verdict, newPassword));
+                setLoading(false);
+                return;
+            }
+            await changeMasterPassword(currentPassword, newPassword, vaultEntries, vaultVersion);
             onSuccess();
         } catch (err) {
             setError(err instanceof AuthError ? err.message : "Une erreur inattendue est survenue.");
@@ -76,8 +82,8 @@ export default function ChangePasswordModal({ vaultEntries, onClose, onSuccess }
                         autoComplete="new-password"
                         disabled={loading}
                     />
-                    {newPassword && strength && (
-                        <StrengthBar score={strength.score} entropy={strength.entropy} />
+                    {newPassword && assessment && (
+                        <StrengthBar score={assessment.score} entropy={guessesToBits(assessment.guessesLog10)} />
                     )}
                 </div>
 

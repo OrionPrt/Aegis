@@ -3,8 +3,12 @@ import type { EmailEventContext } from "./email.js";
 
 const sendMock = vi.fn().mockResolvedValue({ data: { id: "test" }, error: null });
 
+// Vitest 4 : un mock appelé avec `new` doit avoir une implémentation
+// `function` ou `class` - une fonction fléchée n'est pas un constructeur.
 vi.mock("resend", () => ({
-    Resend: vi.fn().mockImplementation(() => ({ emails: { send: sendMock } })),
+    Resend: vi.fn().mockImplementation(function () {
+        return { emails: { send: sendMock } };
+    }),
 }));
 
 let sendPasswordChangedEmail: typeof import("./email.js").sendPasswordChangedEmail;

@@ -61,7 +61,7 @@ export default function VaultPage() {
     const [searchParams] = useSearchParams();
 
     // ── Hook vault — chargement, chiffrement, sauvegarde ───
-    const { entries, status, error: vaultError, saveVault } = useVault();
+    const { entries, status, error: vaultError, version: vaultVersion, saveVault } = useVault();
     const typedEntries = entries as VaultEntryExtended[];
 
     // ── État local UI ──────────────────────────────────────
@@ -93,9 +93,15 @@ export default function VaultPage() {
         setDetailKey((k) => k + 1);
     }
 
+    // Les échecs de sauvegarde (dont un conflit avec un autre appareil) sont
+    // affichés par la bannière d'erreur de VaultTopbar, alimentée par useVault.
     async function deleteEntry(id: string) {
         const updated = typedEntries.filter((e) => e.id !== id);
-        await saveVault(updated);
+        try {
+            await saveVault(updated);
+        } catch {
+            return;
+        }
         if (selected?.id === id) setSelected(null);
     }
 
@@ -105,7 +111,11 @@ export default function VaultPage() {
     async function reorderEntries(draggedEntryId: string, targetId: string, placement?: DropPlacement) {
         const reordered = moveEntry(typedEntries, draggedEntryId, targetId, placement);
         if (reordered === typedEntries) return;
-        await saveVault([...reordered]);
+        try {
+            await saveVault([...reordered]);
+        } catch {
+            // Affiché par la bannière d'erreur (voir deleteEntry).
+        }
     }
 
     async function saveEntryForm(data: EntryFormData) {
@@ -116,7 +126,12 @@ export default function VaultPage() {
     }
 
     async function handleLogout() {
-        await logout();
+        try {
+            await logout();
+        } catch {
+            // Hors ligne : la session locale est déjà effacée par logout(),
+            // celle du serveur expirera d'elle-même.
+        }
         navigate("/login");
     }
 
@@ -169,7 +184,7 @@ export default function VaultPage() {
                 <VaultTopbar
                     category={category}
                     saving={saving}
-                    hasError={!!vaultError}
+                    errorMessage={vaultError}
                     search={search}
                     onSearchChange={setSearch}
                     onAdd={() => openEntryModal(null)}
@@ -215,6 +230,7 @@ export default function VaultPage() {
             {showChangePassword && (
                 <ChangePasswordModal
                     vaultEntries={typedEntries}
+                    vaultVersion={vaultVersion}
                     onClose={() => setShowChangePassword(false)}
                     onSuccess={() => navigate("/login")}
                 />

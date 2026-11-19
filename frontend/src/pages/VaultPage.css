@@ -285,6 +285,11 @@
 
 .saving-indicator-danger { color: var(--danger); }
 
+/* Erreur de sauvegarde (dont un conflit avec un autre appareil), sous la barre du haut */
+.vault-save-error {
+    margin: 0 var(--space-4) var(--space-3);
+}
+
 .btn-primary {
     display: inline-flex;
     align-items: center;

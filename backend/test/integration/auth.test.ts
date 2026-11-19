@@ -256,6 +256,7 @@ describe("/api/auth", () => {
                     currentAuthKeyHex: fakeAuthKeyHex("wrong"),
                     newAuthKeyHex: fakeAuthKeyHex("k"),
                     vault: { ciphertext: "AAAA", iv: "AAAAAAAAAAAAAAAA" },
+                    baseVersion: 0,
                 },
             });
 
@@ -270,6 +271,7 @@ describe("/api/auth", () => {
                     currentAuthKeyHex: fakeAuthKeyHex(),
                     newAuthKeyHex: fakeAuthKeyHex("k"),
                     vault: { ciphertext: "AAAA", iv: "AAAAAAAAAAAAAAAA" },
+                    baseVersion: 0,
                 },
             });
             expect(res.statusCode).toBe(401);
@@ -291,6 +293,7 @@ describe("/api/auth", () => {
                     currentAuthKeyHex: currentKey,
                     newAuthKeyHex: newKey,
                     vault: { ciphertext: "AAAA", iv: "AAAAAAAAAAAAAAAA" },
+                    baseVersion: 0,
                 },
             });
             expect(res.statusCode).toBe(200);
@@ -313,6 +316,40 @@ describe("/api/auth", () => {
                 payload: { email, authKeyHex: newKey },
             });
             expect(newLogin.statusCode).toBe(200);
+        });
+
+        it("rejects a change based on an outdated vault version with 409 and changes nothing", async () => {
+            const email = uniqueEmail("cp-conflict");
+            emails.push(email);
+            const currentKey = fakeAuthKeyHex("cp-conflict");
+            await register(email, currentKey);
+            const token = await loginAndGetToken(email, currentKey);
+
+            // Un autre appareil a sauvegardé entre-temps : le coffre est en version 1.
+            await app.inject({
+                method: "PUT",
+                url: "/api/vault",
+                headers: { authorization: `Bearer ${token}` },
+                payload: { ciphertext: "QkJCQg==", iv: "AAAAAAAAAAAAAAAA", baseVersion: 0 },
+            });
+
+            const res = await app.inject({
+                method: "POST",
+                url: "/api/auth/change-password",
+                headers: { authorization: `Bearer ${token}` },
+                payload: {
+                    currentAuthKeyHex: currentKey,
+                    newAuthKeyHex: fakeAuthKeyHex("cp-conflict-new"),
+                    vault: { ciphertext: "AAAA", iv: "AAAAAAAAAAAAAAAA" },
+                    baseVersion: 0,
+                },
+            });
+            expect(res.statusCode).toBe(409);
+
+            const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+            expect(user.vaultData).toBe("QkJCQg==");
+            const stillWorks = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email, authKeyHex: currentKey } });
+            expect(stillWorks.statusCode).toBe(200);
         });
     });
 

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { isAuthenticated } from "./lib/auth-client";
+import ProtectedRoute from "./components/ProtectedRoute";
 import VaultPage from "./pages/VaultPage";
 import AuthPage from "./pages/AuthPage";
 import SessionsPage from "./pages/SessionsPage";
@@ -7,10 +7,6 @@ import SecurityAuditPage from "./pages/SecurityAuditPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
 import CookiesPage from "./pages/CookiesPage";
-
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  return isAuthenticated() ? <>{children}</> : <Navigate to="/login" replace />;
-}
 
 export default function App() {
   return (
