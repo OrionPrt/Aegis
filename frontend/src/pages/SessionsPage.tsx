@@ -41,63 +41,92 @@ interface AuditEntry {
 // COMPOSANT PRINCIPAL
 // ─────────────────────────────────────────────────────────
 
+const AUDIT_LIMIT = 20;
+
+interface SecurityData {
+    sessions:   Session[];
+    auditLogs:  AuditEntry[];
+    auditTotal: number;
+}
+
+async function loadSecurityData(offset: number): Promise<SecurityData> {
+    const [sessionsRes, auditRes] = await Promise.all([
+        apiFetch("/sessions") as Promise<{ sessions: Session[] }>,
+        apiFetch(`/sessions/audit?limit=${AUDIT_LIMIT}&offset=${offset}`) as Promise<{
+            logs: AuditEntry[];
+            total: number;
+        }>,
+    ]);
+    return { sessions: sessionsRes.sessions, auditLogs: auditRes.logs, auditTotal: auditRes.total };
+}
+
+function isExpiredSession(err: unknown): boolean {
+    return err instanceof AuthError && err.status === 401;
+}
+
 export default function SessionsPage() {
     const navigate = useNavigate();
 
-    const [sessions,     setSessions]     = useState<Session[]>([]);
-    const [auditLogs,    setAuditLogs]    = useState<AuditEntry[]>([]);
-    const [auditTotal,   setAuditTotal]   = useState(0);
+    const [data,         setData]         = useState<SecurityData>({ sessions: [], auditLogs: [], auditTotal: 0 });
+    // Page demandée ; `attempt` relance le même chargement (bouton Réessayer).
+    const [request,      setRequest]      = useState({ offset: 0, attempt: 0 });
     const [auditOffset,  setAuditOffset]  = useState(0);
     const [loading,      setLoading]      = useState(true);
     const [error,        setError]        = useState<string | null>(null);
+    const [actionError,  setActionError]  = useState<string | null>(null);
     const [revoking,     setRevoking]     = useState<string | null>(null);
-
-    const AUDIT_LIMIT = 20;
+    const { sessions, auditLogs, auditTotal } = data;
 
     // ── Chargement ─────────────────────────────────────────
+    // Seul le dernier chargement lancé met la page à jour : une réponse plus
+    // lente d'un chargement précédent (double montage de StrictMode, page
+    // changée entre-temps) est ignorée.
 
-    async function fetchData(offset = 0) {
+    useEffect(() => {
+        let cancelled = false;
+        loadSecurityData(request.offset)
+            .then((loaded) => {
+                if (cancelled) return;
+                setData(loaded);
+                setAuditOffset(request.offset);
+                setLoading(false);
+            })
+            .catch((err: unknown) => {
+                if (cancelled) return;
+                // Ne jamais afficher silencieusement "0 session" sur un échec
+                // réseau/auth - l'utilisateur doit savoir que le chargement a
+                // échoué plutôt que de croire qu'il n'a vraiment aucune session.
+                if (isExpiredSession(err)) {
+                    navigate("/login");
+                    return;
+                }
+                setError(err instanceof Error ? err.message : "Erreur de chargement.");
+                setLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, [request, navigate]);
+
+    function loadPage(offset: number) {
         setLoading(true);
         setError(null);
-        try {
-            const [sessionsRes, auditRes] = await Promise.all([
-                apiFetch("/sessions") as Promise<{ sessions: Session[] }>,
-                apiFetch(`/sessions/audit?limit=${AUDIT_LIMIT}&offset=${offset}`) as Promise<{
-                    logs: AuditEntry[];
-                    total: number;
-                }>,
-            ]);
-            setSessions(sessionsRes.sessions);
-            setAuditLogs(auditRes.logs);
-            setAuditTotal(auditRes.total);
-            setAuditOffset(offset);
-        } catch (err) {
-            // Ne jamais afficher silencieusement "0 session" sur un échec
-            // réseau/auth - l'utilisateur doit savoir que le chargement a
-            // échoué plutôt que de croire qu'il n'a vraiment aucune session.
-            if (err instanceof AuthError && err.status === 401) {
-                navigate("/login");
-                return;
-            }
-            setError(err instanceof Error ? err.message : "Erreur de chargement.");
-        } finally {
-            setLoading(false);
-        }
+        setRequest((r) => ({ offset, attempt: r.attempt + 1 }));
     }
-
-    useEffect(() => { fetchData(); }, []);
 
     // ── Révoquer une session ────────────────────────────────
 
     async function revokeOne(id: string, isCurrent: boolean) {
         setRevoking(id);
+        setActionError(null);
         try {
             await apiFetch(`/sessions/${id}`, { method: "DELETE" });
             if (isCurrent) {
                 navigate("/login");
             } else {
-                setSessions((s) => s.filter((sess) => sess.id !== id));
+                setData((d) => ({ ...d, sessions: d.sessions.filter((sess) => sess.id !== id) }));
             }
+        } catch (err) {
+            if (isExpiredSession(err)) { navigate("/login"); return; }
+            setActionError(err instanceof Error ? err.message : "La révocation a échoué.");
         } finally {
             setRevoking(null);
         }
@@ -105,9 +134,13 @@ export default function SessionsPage() {
 
     async function revokeAll() {
         setRevoking("all");
+        setActionError(null);
         try {
             await apiFetch("/sessions", { method: "DELETE" });
             navigate("/login");
+        } catch (err) {
+            if (isExpiredSession(err)) { navigate("/login"); return; }
+            setActionError(err instanceof Error ? err.message : "La révocation a échoué.");
         } finally {
             setRevoking(null);
         }
@@ -134,7 +167,7 @@ export default function SessionsPage() {
                 <div className="sp-loading">
                     <AlertTriangle className="loading-mark" size={26} strokeWidth={1.75} />
                     <p>{error}</p>
-                    <button className="sp-back" onClick={() => fetchData(auditOffset)}>Réessayer</button>
+                    <button className="sp-back" onClick={() => loadPage(auditOffset)}>Réessayer</button>
                 </div>
             ) : (
                 <div className="sp-content">
@@ -156,6 +189,12 @@ export default function SessionsPage() {
                                 </button>
                             )}
                         </div>
+
+                        {actionError && (
+                            <div className="sp-action-error" role="alert">
+                                <AlertTriangle size={14} strokeWidth={2} /> {actionError}
+                            </div>
+                        )}
 
                         <div className="sessions-list">
                             {sessions.map((session) => (
@@ -232,7 +271,7 @@ export default function SessionsPage() {
                                 <button
                                     className="btn-page"
                                     disabled={auditOffset === 0}
-                                    onClick={() => fetchData(auditOffset - AUDIT_LIMIT)}
+                                    onClick={() => loadPage(auditOffset - AUDIT_LIMIT)}
                                 >
                                     Précédent
                                 </button>
@@ -242,7 +281,7 @@ export default function SessionsPage() {
                                 <button
                                     className="btn-page"
                                     disabled={auditOffset + AUDIT_LIMIT >= auditTotal}
-                                    onClick={() => fetchData(auditOffset + AUDIT_LIMIT)}
+                                    onClick={() => loadPage(auditOffset + AUDIT_LIMIT)}
                                 >
                                     Suivant
                                 </button>
