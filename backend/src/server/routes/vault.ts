@@ -12,12 +12,12 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import bcrypt from "bcryptjs";
+import { VAULT_CONFLICT_MESSAGE, VaultVersionSchema } from "../lib/vault-version.js";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth, MAX_FAILED_ATTEMPTS, LOCKOUT_DURATION_MS } from "./auth.js";
 import { getIp, getUserAgent, logAudit } from "../lib/audit.js";
 import { sendAccountLockedEmail } from "../lib/email.js";
-import { VAULT_CONFLICT_MESSAGE, VaultVersionSchema } from "../lib/vault-version.js";
 
 // ─────────────────────────────────────────────────────────
 // TYPES

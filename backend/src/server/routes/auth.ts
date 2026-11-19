@@ -9,6 +9,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { VAULT_CONFLICT_MESSAGE, VaultVersionSchema } from "../lib/vault-version.js";
 import {
     createSession,
     validateRefreshToken,
@@ -21,7 +22,6 @@ import {
     SESSION_TTL_MS,
 } from "../lib/audit.js";
 import { sendPasswordChangedEmail, sendNewIpLoginEmail, sendAccountLockedEmail } from "../lib/email.js";
-import { VAULT_CONFLICT_MESSAGE, VaultVersionSchema } from "../lib/vault-version.js";
 
 interface JwtPayload { sub: string; email: string; }
 
