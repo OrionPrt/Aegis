@@ -18,8 +18,32 @@ de le pousser vers le dépôt de sauvegarde.
 - `pg_dump` (format custom, compressé) → chiffrement symétrique AES-256 via
   `gpg` → push vers un dépôt GitHub privé dédié (`aegis-backups`), séparé du
   dépôt de code.
-- Aucune purge automatique : les sauvegardes sont conservées indéfiniment
-  (le volume reste négligeable à l'échelle de ce projet).
+- Rétention : voir ci-dessous. Par défaut, rien n'est supprimé.
+- La passphrase de chiffrement est lue sur l'entrée standard de `gpg` (jamais
+  en argument de commande), et le jeton du dépôt de sauvegarde passe en
+  en-tête HTTP, pas dans l'URL.
+
+## Rétention (droit à l'effacement)
+
+Un compte supprimé disparaît de la base, mais reste dans chaque dump
+antérieur. Tant que les dumps sont gardés indéfiniment, ses données (email,
+IP du journal d'audit, coffre chiffré) restent dans le dépôt de sauvegarde.
+
+Pour limiter leur durée de conservation, définir la **variable** (pas le
+secret) `BACKUP_RETENTION_DAYS` sur le dépôt `Aegis` : Settings → Secrets and
+variables → Actions → Variables → New repository variable, par exemple `30`.
+À chaque exécution, le workflow :
+
+1. supprime les dumps plus anciens que ce nombre de jours, en gardant
+   toujours au moins les 7 plus récents ;
+2. **réécrit l'historique** du dépôt de sauvegarde en un seul commit
+   (`git push --force`), pour que les dumps supprimés n'y restent pas.
+
+Cette réécriture est irréversible : vérifier avant de l'activer qu'une
+sauvegarde récente se restaure bien (section suivante). GitHub peut garder
+quelque temps des objets devenus inaccessibles. Pour une purge immédiate et
+complète, recréer le dépôt `aegis-backups` ou demander un nettoyage au
+support GitHub.
 
 ## Mise en place (à faire une fois)
 
@@ -48,9 +72,9 @@ de le pousser vers le dépôt de sauvegarde.
 ## Restaurer une sauvegarde
 
 ```bash
-# 1. Déchiffrer
-gpg --batch --yes --decrypt --passphrase "LA_PASSPHRASE" \
-    -o backup.dump backups/2026-09-11T03-00-00Z.dump.gpg
+# 1. Déchiffrer (gpg demande la passphrase : elle n'apparaît ni dans
+#    l'historique du shell ni dans la liste des processus)
+gpg --decrypt -o backup.dump backups/2026-09-11T03-00-00Z.dump.gpg
 
 # 2. Restaurer vers une base cible (idéalement une base neuve/vide pour
 #    inspection avant de basculer la prod dessus)
