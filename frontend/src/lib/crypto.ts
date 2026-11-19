@@ -26,13 +26,33 @@ import { argon2id } from "hash-wasm";
 // CONSTANTES
 // ─────────────────────────────────────────────────────────
 
-/** Paramètres Argon2id — OWASP recommande minimum m=19456, t=2, p=1 */
-const ARGON2_PARAMS = {
-    memorySize: 65536,   // 64 MiB — résistance aux attaques GPU
-    iterations: 3,       // 3 passes
-    parallelism: 4,      // 4 threads
-    outputLen: 64,       // 512 bits → 32 pour masterKey + 32 pour authKey
-} as const;
+interface Argon2Params {
+    memorySize: number;  // KiB
+    iterations: number;
+    parallelism: number;
+}
+
+/**
+ * Paramètres Argon2id par version de dérivation. La version de chaque compte
+ * est stockée côté serveur (User.kdfVersion, renvoyée par /auth/salt) : pour
+ * renforcer les paramètres, ajouter une version ici et passer
+ * CURRENT_KDF_VERSION dessus (côté client et dans backend/src/server/lib/kdf.ts)
+ * - les comptes existants continuent de dériver avec la leur.
+ * OWASP recommande au minimum m=19456, t=2, p=1.
+ */
+const KDF_PARAMS: Readonly<Record<number, Argon2Params>> = {
+    1: {
+        memorySize: 65536,   // 64 MiB — résistance aux attaques GPU
+        iterations: 3,       // 3 passes
+        parallelism: 4,      // 4 threads
+    },
+};
+
+/** Version utilisée pour tout nouveau compte. */
+export const CURRENT_KDF_VERSION = 1;
+
+/** 512 bits → 32 pour masterKey + 32 pour authKey */
+const DERIVED_KEY_LENGTH = 64;
 
 const AES_KEY_LENGTH = 256;   // bits
 const IV_LENGTH      = 12;    // bytes — recommandé pour AES-GCM (96 bits)
@@ -113,23 +133,30 @@ export function generateSalt(): string {
  * @param masterPassword - Le mot de passe maître de l'utilisateur
  * @param email          - Email de l'utilisateur (personnalise la dérivation)
  * @param saltBase64     - Sel Base64 récupéré depuis le serveur
+ * @param kdfVersion     - Version des paramètres Argon2 du compte (/auth/salt)
  */
 export async function deriveKeys(
     masterPassword: string,
     email: string,
-    saltBase64: string
+    saltBase64: string,
+    kdfVersion: number = CURRENT_KDF_VERSION
 ): Promise<DerivedKeys> {
+    const params = KDF_PARAMS[kdfVersion];
+    if (!params) throw new Error(`Version de dérivation de clé non prise en charge : ${kdfVersion}.`);
+
     // Le "poivre" contextuel évite les collisions inter-utilisateurs
-    // même si deux utilisateurs ont le même mot de passe
-    const contextualPassword = `aegis:${email.toLowerCase()}:${masterPassword}`;
+    // même si deux utilisateurs ont le même mot de passe. L'email est
+    // normalisé ici, comme côté serveur : une espace ou une majuscule de
+    // plus donnerait sinon d'autres clés, et un coffre indéchiffrable.
+    const contextualPassword = `aegis:${email.trim().toLowerCase()}:${masterPassword}`;
     const salt = base64ToBuffer(saltBase64);
 
     // Argon2id → 64 bytes de matériel de clé
     const hashHex = await argon2id({
         password: contextualPassword,
         salt,
-        ...ARGON2_PARAMS,
-        hashLength: ARGON2_PARAMS.outputLen,
+        ...params,
+        hashLength: DERIVED_KEY_LENGTH,
     });
 
     // Découpage du matériel de clé

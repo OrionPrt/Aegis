@@ -18,7 +18,7 @@ Crée un compte. Le mot de passe maître ne transite jamais - seul `authKeyHex`
 
 ```json
 // Requête
-{ "email": "a@b.com", "authKeyHex": "<64 hex>", "saltBase64": "<32-64 chars>" }
+{ "email": "a@b.com", "authKeyHex": "<64 hex>", "saltBase64": "<32 octets en base64>", "kdfVersion": 1 }
 
 // Réponse 201
 { "accessToken": "<jwt>", "expiresAt": 1234567890000 }
@@ -28,11 +28,12 @@ appliqué avant la réponse, voir [security-model.md](./security-model.md)).
 
 ### `GET /api/auth/salt?email=...`
 
-Retourne le sel Argon2id de l'utilisateur, ou un sel factice si l'email
-n'existe pas (anti-énumération). Toujours `200`.
+Retourne le sel Argon2id de l'utilisateur et la version des paramètres Argon2
+de son compte, ou un sel factice et la version actuelle si l'email n'existe pas
+(anti-énumération). Toujours `200` pour un email valide.
 
 ```json
-{ "saltBase64": "<base64>" }
+{ "saltBase64": "<base64>", "kdfVersion": 1 }
 ```
 
 ### `POST /api/auth/login`

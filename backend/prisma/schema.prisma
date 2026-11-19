@@ -16,6 +16,9 @@ model User {
   email            String     @unique
   authKeyHash      String
   saltBase64       String
+  // Version des paramètres Argon2 avec lesquels le client dérive ses clés
+  // (voir lib/kdf.ts) : permet de les renforcer sans casser les comptes existants.
+  kdfVersion       Int        @default(1)
   vaultData        String?
   vaultIv          String?
   failedAttempts   Int        @default(0)
