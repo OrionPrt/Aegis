@@ -51,6 +51,7 @@ export default function TotpField({ entry, copied, copyToClipboard }: TotpFieldP
                         className={`icon-btn ${copied === "totp" ? "copied" : ""}`}
                         onClick={() => copyToClipboard(code, "totp")}
                         title="Copier"
+                        aria-label={copied === "totp" ? "Code copié" : "Copier le code"}
                     >
                         {copied === "totp" ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
                     </button>

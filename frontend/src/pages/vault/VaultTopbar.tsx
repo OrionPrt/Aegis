@@ -34,16 +34,16 @@ export default function VaultTopbar({
                     <button className="btn-primary" onClick={onAdd} disabled={saving}>
                         <Plus size={15} strokeWidth={2.25} /> <span>Ajouter</span>
                     </button>
-                    <button className="icon-btn mobile-tool-btn" title="Générateur" onClick={onOpenGenerator}>
+                    <button className="icon-btn mobile-tool-btn" title="Générateur" aria-label="Générateur" onClick={onOpenGenerator}>
                         <RefreshCw size={16} strokeWidth={2} />
                     </button>
-                    <button className="icon-btn mobile-tool-btn" title="Analyse du vault" onClick={onOpenSecurityAudit}>
+                    <button className="icon-btn mobile-tool-btn" title="Analyse du vault" aria-label="Analyse du vault" onClick={onOpenSecurityAudit}>
                         <ShieldAlert size={16} strokeWidth={2} />
                     </button>
-                    <button className="icon-btn mobile-tool-btn" title="Sécurité" onClick={onOpenSessions}>
+                    <button className="icon-btn mobile-tool-btn" title="Sécurité" aria-label="Sécurité" onClick={onOpenSessions}>
                         <ShieldCheck size={16} strokeWidth={2} />
                     </button>
-                    <button className="icon-btn mobile-logout-btn" title="Déconnexion" onClick={onLogout}>
+                    <button className="icon-btn mobile-logout-btn" title="Déconnexion" aria-label="Déconnexion" onClick={onLogout}>
                         <LogOut size={16} strokeWidth={2} />
                     </button>
                 </div>

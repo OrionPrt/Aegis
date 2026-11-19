@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { AlertTriangle, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
+import Modal from "../../../components/Modal";
 import { AuthError, changeMasterPassword } from "../../../lib/auth-client";
 import { evaluatePasswordStrength } from "../../../lib/crypto";
 import type { VaultEntry } from "../../../lib/crypto";
@@ -50,80 +51,75 @@ export default function ChangePasswordModal({ vaultEntries, onClose, onSuccess }
     }
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal modal-sm" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h2>Changer le mot de passe maître</h2>
-                    <button className="modal-close" onClick={onClose}><X size={15} strokeWidth={2} /></button>
+        <Modal title="Changer le mot de passe maître" size="sm" onClose={onClose} dismissible={!loading}>
+            <form className="modal-form" onSubmit={handleSubmit}>
+                <div className="form-row">
+                    <label htmlFor="cp-current">Mot de passe actuel</label>
+                    <input
+                        id="cp-current"
+                        data-autofocus
+                        type="password"
+                        value={currentPassword}
+                        onChange={(e) => { setCurrentPassword(e.target.value); setError(null); }}
+                        autoComplete="current-password"
+                        disabled={loading}
+                    />
                 </div>
-                <form className="modal-form" onSubmit={handleSubmit}>
-                    <div className="form-row">
-                        <label htmlFor="cp-current">Mot de passe actuel</label>
-                        <input
-                            id="cp-current"
-                            type="password"
-                            value={currentPassword}
-                            onChange={(e) => { setCurrentPassword(e.target.value); setError(null); }}
-                            autoComplete="current-password"
-                            disabled={loading}
-                        />
-                    </div>
 
-                    <div className="form-row">
-                        <label htmlFor="cp-new">Nouveau mot de passe</label>
-                        <input
-                            id="cp-new"
-                            type="password"
-                            value={newPassword}
-                            onChange={(e) => { setNewPassword(e.target.value); setError(null); }}
-                            autoComplete="new-password"
-                            disabled={loading}
-                        />
-                        {newPassword && strength && (
-                            <StrengthBar score={strength.score} entropy={strength.entropy} />
-                        )}
-                    </div>
-
-                    <div className="form-row">
-                        <label htmlFor="cp-confirm">Confirmer le nouveau mot de passe</label>
-                        <input
-                            id="cp-confirm"
-                            type="password"
-                            value={confirmPassword}
-                            onChange={(e) => { setConfirmPassword(e.target.value); setError(null); }}
-                            autoComplete="new-password"
-                            disabled={loading}
-                        />
-                    </div>
-
-                    <p className="field-hint">
-                        Toutes vos sessions actives (tous les appareils) seront déconnectées -
-                        vous devrez vous reconnecter avec le nouveau mot de passe.
-                    </p>
-
-                    {loading && (
-                        <div className="form-notice">
-                            <RefreshCw size={14} strokeWidth={2} className="argon-spinner" />
-                            <span>Vérification et rechiffrement du vault… (~3s)</span>
-                        </div>
+                <div className="form-row">
+                    <label htmlFor="cp-new">Nouveau mot de passe</label>
+                    <input
+                        id="cp-new"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => { setNewPassword(e.target.value); setError(null); }}
+                        autoComplete="new-password"
+                        disabled={loading}
+                    />
+                    {newPassword && strength && (
+                        <StrengthBar score={strength.score} entropy={strength.entropy} />
                     )}
+                </div>
 
-                    {error && (
-                        <div className="form-error" role="alert">
-                            <AlertTriangle size={14} strokeWidth={2} /> {error}
-                        </div>
-                    )}
+                <div className="form-row">
+                    <label htmlFor="cp-confirm">Confirmer le nouveau mot de passe</label>
+                    <input
+                        id="cp-confirm"
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => { setConfirmPassword(e.target.value); setError(null); }}
+                        autoComplete="new-password"
+                        disabled={loading}
+                    />
+                </div>
 
-                    <div className="modal-actions">
-                        <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>
-                            Annuler
-                        </button>
-                        <button type="submit" className="btn-primary" disabled={loading}>
-                            {loading ? "Changement…" : "Changer le mot de passe"}
-                        </button>
+                <p className="field-hint">
+                    Toutes vos sessions actives (tous les appareils) seront déconnectées -
+                    vous devrez vous reconnecter avec le nouveau mot de passe.
+                </p>
+
+                {loading && (
+                    <div className="form-notice">
+                        <RefreshCw size={14} strokeWidth={2} className="argon-spinner" />
+                        <span>Vérification et rechiffrement du vault… (~3s)</span>
                     </div>
-                </form>
-            </div>
-        </div>
+                )}
+
+                {error && (
+                    <div className="form-error" role="alert">
+                        <AlertTriangle size={14} strokeWidth={2} /> {error}
+                    </div>
+                )}
+
+                <div className="modal-actions">
+                    <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>
+                        Annuler
+                    </button>
+                    <button type="submit" className="btn-primary" disabled={loading}>
+                        {loading ? "Changement…" : "Changer le mot de passe"}
+                    </button>
+                </div>
+            </form>
+        </Modal>
     );
 }

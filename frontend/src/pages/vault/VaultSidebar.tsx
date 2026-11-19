@@ -84,7 +84,7 @@ export default function VaultSidebar({
                         {email?.[0]?.toUpperCase() ?? "?"}
                     </div>
                     <span className="user-email">{email}</span>
-                    <button className="icon-btn sidebar-logout-btn" title="Déconnexion" onClick={onLogout}>
+                    <button className="icon-btn sidebar-logout-btn" title="Déconnexion" aria-label="Déconnexion" onClick={onLogout}>
                         <LogOut size={14} strokeWidth={2} />
                     </button>
                 </div>
