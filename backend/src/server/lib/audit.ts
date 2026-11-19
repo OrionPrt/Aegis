@@ -8,6 +8,7 @@
 import type { AuditAction, Prisma } from "@prisma/client";
 import type { FastifyRequest } from "fastify";
 import crypto from "node:crypto";
+import { isIP } from "node:net";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma.js";
 
@@ -25,11 +26,13 @@ export const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 // UTILITAIRES
 // ─────────────────────────────────────────────────────────
 
-/** Extrait l'IP réelle derrière un reverse proxy */
+/**
+ * IP du client, telle que Fastify la résout derrière le proxy (trustProxy) :
+ * la même que celle du rate limiting. Lire X-Forwarded-For à la main
+ * accepterait n'importe quelle valeur envoyée par le client hors de Vercel.
+ */
 export function getIp(req: FastifyRequest): string {
-    const forwarded = req.headers["x-forwarded-for"];
-    if (typeof forwarded === "string") return forwarded.split(",")[0].trim();
-    return req.ip ?? "unknown";
+    return isIP(req.ip ?? "") ? req.ip : "unknown";
 }
 
 /** Extrait un user-agent lisible */

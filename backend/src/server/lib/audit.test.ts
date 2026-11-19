@@ -26,14 +26,13 @@ describe("generateRefreshToken", () => {
 });
 
 describe("getIp", () => {
-    it("prefers the first entry of x-forwarded-for when present (reverse proxy)", () => {
-        const req = mockRequest({ headers: { "x-forwarded-for": "203.0.113.9, 10.0.0.1" }, ip: "10.0.0.1" });
-        expect(getIp(req)).toBe("203.0.113.9");
+    it("uses req.ip as resolved by Fastify (trustProxy), never a raw X-Forwarded-For header", () => {
+        const req = mockRequest({ headers: { "x-forwarded-for": "203.0.113.9, 10.0.0.1" }, ip: "198.51.100.4" });
+        expect(getIp(req)).toBe("198.51.100.4");
     });
 
-    it("falls back to req.ip when no x-forwarded-for header is set", () => {
-        const req = mockRequest({ ip: "198.51.100.4" });
-        expect(getIp(req)).toBe("198.51.100.4");
+    it("returns 'unknown' when the address is not a valid IP", () => {
+        expect(getIp(mockRequest({ ip: "<script>" }))).toBe("unknown");
     });
 });
 

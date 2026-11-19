@@ -156,6 +156,22 @@ describe("/api/sessions", () => {
             expect(body.total).toBeGreaterThanOrEqual(2);
         });
 
+        it("rejects a non-numeric or negative pagination parameter with 400", async () => {
+            const email = uniqueEmail("sess-audit-badpage");
+            emails.push(email);
+            const reg = await register(email, fakeAuthKeyHex("sess-audit-badpage"));
+            const token = reg.json().accessToken as string;
+
+            for (const query of ["limit=abc", "offset=-5", "limit=0", "offset=1.5"]) {
+                const res = await app.inject({
+                    method: "GET",
+                    url: `/api/sessions/audit?${query}`,
+                    headers: { authorization: `Bearer ${token}` },
+                });
+                expect(res.statusCode, query).toBe(400);
+            }
+        });
+
         it("caps the limit query param at 100", async () => {
             const email = uniqueEmail("sess-audit-limit");
             emails.push(email);

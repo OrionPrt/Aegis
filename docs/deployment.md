@@ -29,7 +29,7 @@
 |---|---|---|
 | `DATABASE_URL` | URL Postgres **poolée** (Neon, `-pooler` dans le hostname, `?pgbouncer=true`) - utilisée à l'exécution | Oui |
 | `DIRECT_URL` | URL Postgres directe (sans pooler) - utilisée uniquement par `prisma migrate deploy` | Oui |
-| `JWT_SECRET` | Secret de signature des access tokens (HS256) | Oui |
+| `JWT_SECRET` | Secret de signature des access tokens (HS256), 32 caractères aléatoires minimum (`openssl rand -base64 48`) | Oui - l'API refuse de démarrer sans |
 | `COOKIE_SECRET` | Secret de signature des cookies (`@fastify/cookie`) | Oui |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Accès Redis pour le rate limiting (`Redis.fromEnv()`) | Oui |
 | `RESEND_API_KEY` | Envoi des emails de sécurité | Oui (vide accepté en dev pour désactiver l'envoi) |

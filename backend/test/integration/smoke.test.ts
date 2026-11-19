@@ -18,4 +18,14 @@ describe("smoke", () => {
         expect(res.statusCode).toBe(200);
         expect(res.json()).toEqual({ status: "ok" });
     });
+
+    it("marks every API response as not cacheable (vault ciphertext, tokens, salts)", async () => {
+        const health = await app.inject({ method: "GET", url: "/api/health" });
+        const salt = await app.inject({ method: "GET", url: "/api/auth/salt?email=someone%40example.com" });
+        const denied = await app.inject({ method: "GET", url: "/api/vault" });
+
+        for (const res of [health, salt, denied]) {
+            expect(res.headers["cache-control"]).toBe("no-store");
+        }
+    });
 });
