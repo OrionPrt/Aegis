@@ -95,7 +95,8 @@ describe("/api/vault", () => {
         await registerAndLogin(email, authKeyHex);
         const token = await accessToken(email, authKeyHex);
 
-        const payload = { ciphertext: "A".repeat(2 * 1024 * 1024), iv: Buffer.from("123456789012").toString("base64") };
+        // baseVersion : exigé par le contrôle de version du coffre, ignoré avant lui.
+        const payload = { ciphertext: "A".repeat(2 * 1024 * 1024), iv: Buffer.from("123456789012").toString("base64"), baseVersion: 0 };
         const putRes = await app.inject({
             method: "PUT",
             url: "/api/vault",
