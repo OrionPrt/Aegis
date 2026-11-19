@@ -9,11 +9,13 @@ import StrengthBar from "../StrengthBar";
 
 interface ChangePasswordModalProps {
     vaultEntries: VaultEntry[];
+    /** Version serveur du coffre dont viennent ces entrées. */
+    vaultVersion: number;
     onClose: () => void;
     onSuccess: () => void;
 }
 
-export default function ChangePasswordModal({ vaultEntries, onClose, onSuccess }: ChangePasswordModalProps) {
+export default function ChangePasswordModal({ vaultEntries, vaultVersion, onClose, onSuccess }: ChangePasswordModalProps) {
     const [currentPassword, setCurrentPassword] = useState("");
     const [newPassword,     setNewPassword]     = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -45,7 +47,7 @@ export default function ChangePasswordModal({ vaultEntries, onClose, onSuccess }
                 setLoading(false);
                 return;
             }
-            await changeMasterPassword(currentPassword, newPassword, vaultEntries);
+            await changeMasterPassword(currentPassword, newPassword, vaultEntries, vaultVersion);
             onSuccess();
         } catch (err) {
             setError(err instanceof AuthError ? err.message : "Une erreur inattendue est survenue.");

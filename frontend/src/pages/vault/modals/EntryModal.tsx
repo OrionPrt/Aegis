@@ -62,6 +62,10 @@ export default function EntryModal({ entry, defaultCategory, onClose, onSave }: 
         setSaving(true);
         try {
             await onSave(toEntryData(form, tagsInput, panDigits, brand));
+        } catch (saveError) {
+            // Le modal reste ouvert avec la saisie : en cas de conflit, le
+            // coffre vient d'être rechargé et un nouvel envoi part de lui.
+            setFormError(saveError instanceof Error ? saveError.message : "Erreur de sauvegarde.");
         } finally {
             setSaving(false);
         }
