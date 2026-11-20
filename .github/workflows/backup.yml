@@ -12,6 +12,15 @@ on:
     - cron: "0 3 * * *"  # tous les jours à 3h00 UTC
   workflow_dispatch: {}   # déclenchement manuel depuis l'onglet Actions
 
+# Le dépôt de sauvegarde est atteint avec BACKUP_REPO_TOKEN : le GITHUB_TOKEN
+# de ce workflow n'a besoin d'aucune permission.
+permissions: {}
+
+# Deux sauvegardes simultanées se disputeraient le push.
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
 jobs:
   backup:
     runs-on: ubuntu-latest
@@ -42,9 +51,12 @@ jobs:
       - name: Encrypt dump
         env:
           BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        # Passphrase lue sur l'entrée standard (printf est une commande interne
+        # du shell) : passée en argument, elle serait visible dans la liste
+        # des processus du runner.
         run: |
-          gpg --batch --yes --symmetric --cipher-algo AES256 \
-              --passphrase "$BACKUP_ENCRYPTION_KEY" \
+          printf '%s' "$BACKUP_ENCRYPTION_KEY" | gpg --batch --yes --pinentry-mode loopback \
+              --passphrase-fd 0 --symmetric --cipher-algo AES256 \
               -o backup.dump.gpg backup.dump
           rm backup.dump
 
@@ -52,14 +64,46 @@ jobs:
         env:
           BACKUP_REPO_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
           BACKUP_REPO: OrionPrt/aegis-backups
+          # Variable du dépôt (Settings → Secrets and variables → Actions →
+          # Variables). Vide : tout est conservé. Un nombre de jours : les
+          # dumps plus anciens sont supprimés ET l'historique du dépôt de
+          # sauvegarde est réécrit, pour qu'un compte supprimé disparaisse
+          # vraiment des sauvegardes (voir BACKUP.md).
+          BACKUP_RETENTION_DAYS: ${{ vars.BACKUP_RETENTION_DAYS }}
+          # Garde-fou : jamais moins de dumps que ça, quelle que soit leur date.
+          BACKUP_KEEP_AT_LEAST: "7"
         run: |
+          set -euo pipefail
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
-          git clone "https://x-access-token:${BACKUP_REPO_TOKEN}@github.com/${BACKUP_REPO}.git" backup-repo
+          # Jeton passé en en-tête plutôt que dans l'URL du dépôt.
+          AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$BACKUP_REPO_TOKEN" | base64 -w0)"
+          git -c http.extraHeader="$AUTH_HEADER" clone "https://github.com/${BACKUP_REPO}.git" backup-repo
           mkdir -p backup-repo/backups
           mv backup.dump.gpg "backup-repo/backups/${TIMESTAMP}.dump.gpg"
           cd backup-repo
+          git config http.extraHeader "$AUTH_HEADER"
           git config user.name "aegis-backup-bot"
           git config user.email "actions@users.noreply.github.com"
           git add "backups/${TIMESTAMP}.dump.gpg"
-          git commit -m "backup: ${TIMESTAMP}"
-          git push
+
+          if [ -z "${BACKUP_RETENTION_DAYS:-}" ]; then
+            git commit -m "backup: ${TIMESTAMP}"
+            git push
+            exit 0
+          fi
+
+          # Les noms sont des dates ISO : l'ordre alphabétique est l'ordre
+          # chronologique. Les BACKUP_KEEP_AT_LEAST plus récents sont gardés.
+          CUTOFF=$(date -u -d "-${BACKUP_RETENTION_DAYS} days" +"%Y-%m-%dT%H-%M-%SZ")
+          ls backups/*.dump.gpg | sort | head -n -"${BACKUP_KEEP_AT_LEAST}" | while read -r dump; do
+            if [[ "$(basename "$dump" .dump.gpg)" < "$CUTOFF" ]]; then
+              git rm --quiet "$dump"
+            fi
+          done
+
+          # Un seul commit contenant les dumps conservés : les anciens ne
+          # restent pas dans l'historique.
+          BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          git checkout --quiet --orphan retained
+          git commit --quiet -m "backup: ${TIMESTAMP} (rétention ${BACKUP_RETENTION_DAYS} jours)"
+          git push --force origin "retained:${BRANCH}"
