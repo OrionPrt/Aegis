@@ -61,7 +61,7 @@ export default function VaultPage() {
     const [searchParams] = useSearchParams();
 
     // ── Hook vault — chargement, chiffrement, sauvegarde ───
-    const { entries, status, error: vaultError, version: vaultVersion, saveVault } = useVault();
+    const { entries, folders, status, error: vaultError, version: vaultVersion, saveVault } = useVault();
     const typedEntries = entries as VaultEntryExtended[];
 
     // ── État local UI ──────────────────────────────────────
@@ -98,7 +98,7 @@ export default function VaultPage() {
     async function deleteEntry(id: string) {
         const updated = typedEntries.filter((e) => e.id !== id);
         try {
-            await saveVault(updated);
+            await saveVault({ entries: updated, folders });
         } catch {
             return;
         }
@@ -112,7 +112,7 @@ export default function VaultPage() {
         const reordered = moveEntry(typedEntries, draggedEntryId, targetId, placement);
         if (reordered === typedEntries) return;
         try {
-            await saveVault([...reordered]);
+            await saveVault({ entries: [...reordered], folders });
         } catch {
             // Affiché par la bannière d'erreur (voir deleteEntry).
         }
@@ -121,7 +121,7 @@ export default function VaultPage() {
     async function saveEntryForm(data: EntryFormData) {
         const { updated, saved } = applyEntryForm(typedEntries, editEntry, data);
         setSelected(saved);
-        await saveVault(updated);
+        await saveVault({ entries: updated, folders });
         setShowModal(false);
     }
 
@@ -229,7 +229,7 @@ export default function VaultPage() {
 
             {showChangePassword && (
                 <ChangePasswordModal
-                    vaultEntries={typedEntries}
+                    vault={{ entries: typedEntries, folders }}
                     vaultVersion={vaultVersion}
                     onClose={() => setShowChangePassword(false)}
                     onSuccess={() => navigate("/login")}

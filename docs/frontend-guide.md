@@ -47,7 +47,7 @@ faite par le backend sur chaque endpoint (`requireAuth`).
 ## Types d'entrées du coffre-fort
 
 Trois catégories (`Category = "login" | "card" | "note"`), toutes stockées
-dans le même tableau `VaultEntry[]` chiffré en bloc :
+dans le même coffre chiffré en bloc (voir « Format du coffre » plus bas) :
 
 - **`login`** - identifiant, mot de passe, URL, notes, et optionnellement un
   **secret TOTP** (2FA) : algorithme, nombre de chiffres, période - un code à
@@ -60,11 +60,30 @@ dans le même tableau `VaultEntry[]` chiffré en bloc :
   révéler/copier), dans une zone bornée et défilante pour ne jamais faire
   bouger les boutons d'action.
 
+## Format du coffre
+
+Le blob chiffré contient, une fois déchiffré (`lib/vault-format.ts`) :
+
+- **v2** (écrit par toute sauvegarde) :
+  `{ "format": 2, "entries": VaultEntry[], "folders": VaultFolder[] }` ;
+- **v1** (coffres d'avant les dossiers) : un simple tableau `VaultEntry[]`,
+  toujours lisible, lu comme un coffre sans dossiers.
+
+Les dossiers n'ont qu'un niveau (pas de parent) ; une entrée en désigne au plus
+un via `folderId`. À la lecture, un `folderId` qui ne correspond à aucun dossier
+est retiré, et un format inconnu est refusé plutôt qu'affiché tronqué. Tout
+passe par le même blob : le serveur ne voit pas les noms des dossiers.
+
+Le coffre se lit et s'écrit en entier (`VaultData`) : `useVault().saveVault`,
+comme `changeMasterPassword`, reçoit entrées **et** dossiers - ce qui n'y est
+pas serait perdu à la sauvegarde.
+
 ## Modules `lib/`
 
 | Module | Rôle |
 |---|---|
 | `crypto.ts` | Dérivation de clés (Argon2id), chiffrement/déchiffrement du vault (AES-256-GCM), génération de mot de passe, score de force |
+| `vault-format.ts` | Format du coffre déchiffré (v1/v2), types `VaultData`/`VaultFolder`, lecture tolérante et écriture au format courant |
 | `auth-client.ts` | Session en mémoire, `register`/`login`/`logout`/`changeMasterPassword`/`deleteAccount`, wrapper `apiFetch` avec refresh automatique |
 | `totp.ts` | Parsing d'URI `otpauth://`, encodage/décodage base32, génération de codes HOTP/TOTP (Web Crypto, pas de dépendance externe) |
 | `card.ts` | Détection de marque de carte, formatage, masquage, validation Luhn |

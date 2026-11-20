@@ -3,20 +3,21 @@ import type { FormEvent } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import Modal from "../../../components/Modal";
 import { AuthError, changeMasterPassword, getSession } from "../../../lib/auth-client";
-import type { VaultEntry } from "../../../lib/crypto";
+import type { VaultData } from "../../../lib/vault-format";
 import { assessMasterPassword, guessesToBits, rejectionMessage, MIN_MASTER_PASSWORD_LENGTH } from "../../../lib/password-strength";
 import { useMasterPasswordStrength } from "../../../hooks/useMasterPasswordStrength";
 import StrengthBar from "../StrengthBar";
 
 interface ChangePasswordModalProps {
-    vaultEntries: VaultEntry[];
-    /** Version serveur du coffre dont viennent ces entrées. */
+    /** Coffre complet (entrées et dossiers) à rechiffrer avec le nouveau mot de passe. */
+    vault: VaultData;
+    /** Version serveur du coffre dont vient ce contenu. */
     vaultVersion: number;
     onClose: () => void;
     onSuccess: () => void;
 }
 
-export default function ChangePasswordModal({ vaultEntries, vaultVersion, onClose, onSuccess }: ChangePasswordModalProps) {
+export default function ChangePasswordModal({ vault, vaultVersion, onClose, onSuccess }: ChangePasswordModalProps) {
     const [currentPassword, setCurrentPassword] = useState("");
     const [newPassword,     setNewPassword]     = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -48,7 +49,7 @@ export default function ChangePasswordModal({ vaultEntries, vaultVersion, onClos
                 setLoading(false);
                 return;
             }
-            await changeMasterPassword(currentPassword, newPassword, vaultEntries, vaultVersion);
+            await changeMasterPassword(currentPassword, newPassword, vault, vaultVersion);
             onSuccess();
         } catch (err) {
             setError(err instanceof AuthError ? err.message : "Une erreur inattendue est survenue.");

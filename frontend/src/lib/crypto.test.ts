@@ -9,10 +9,25 @@ import {
     evaluatePasswordStrength,
     type VaultEntry,
 } from "./crypto.js";
+import type { VaultData } from "./vault-format.js";
 
 const SAMPLE_ENTRIES: VaultEntry[] = [
-    { id: "1", label: "GitHub", username: "me@example.com", password: "s3cr3t!", createdAt: 1, updatedAt: 1 },
+    { id: "1", label: "GitHub", username: "me@example.com", password: "s3cr3t!", folderId: "f1", createdAt: 1, updatedAt: 1 },
 ];
+
+const SAMPLE_VAULT: VaultData = {
+    entries: SAMPLE_ENTRIES,
+    folders: [{ id: "f1", name: "Perso", createdAt: 1, updatedAt: 1 }],
+};
+
+/** Chiffre `value` tel quel, comme le faisaient les versions d'avant les dossiers. */
+async function encryptRawJson(value: unknown, masterKey: CryptoKey) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const plaintext = new TextEncoder().encode(JSON.stringify(value));
+    const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, masterKey, plaintext));
+    const toBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+    return { ciphertext: toBase64(ciphertext), iv: toBase64(iv) };
+}
 
 describe("deriveKeys", () => {
     it("is deterministic: same password/email/salt always yields the same authKeyHex", async () => {
@@ -27,9 +42,9 @@ describe("deriveKeys", () => {
         const a = await deriveKeys("MasterPassw0rd!", "user@example.com", salt);
         const b = await deriveKeys("MasterPassw0rd!", "user@example.com", salt);
 
-        const encrypted = await encryptVault(SAMPLE_ENTRIES, a.masterKey);
+        const encrypted = await encryptVault(SAMPLE_VAULT, a.masterKey);
         const decrypted = await decryptVault(encrypted, b.masterKey);
-        expect(decrypted).toEqual(SAMPLE_ENTRIES);
+        expect(decrypted).toEqual(SAMPLE_VAULT);
     });
 
     it("produces a different authKeyHex when the salt differs", async () => {
@@ -77,11 +92,19 @@ describe("deriveKeys", () => {
 });
 
 describe("encryptVault / decryptVault", () => {
-    it("round-trips entries exactly", async () => {
+    it("round-trips entries and folders exactly", async () => {
         const { masterKey } = await deriveKeys("MasterPassw0rd!", "user@example.com", generateSalt());
-        const encrypted = await encryptVault(SAMPLE_ENTRIES, masterKey);
+        const encrypted = await encryptVault(SAMPLE_VAULT, masterKey);
         const decrypted = await decryptVault(encrypted, masterKey);
-        expect(decrypted).toEqual(SAMPLE_ENTRIES);
+        expect(decrypted).toEqual(SAMPLE_VAULT);
+    });
+
+    it("still decrypts a vault saved before folders existed (bare array of entries)", async () => {
+        const { masterKey } = await deriveKeys("MasterPassw0rd!", "user@example.com", generateSalt());
+        const legacyEntries = [{ id: "1", label: "GitHub", createdAt: 1, updatedAt: 1 }];
+        const legacy = await encryptRawJson(legacyEntries, masterKey);
+
+        await expect(decryptVault(legacy, masterKey)).resolves.toEqual({ entries: legacyEntries, folders: [] });
     });
 
     it("round-trips a vault larger than the engine's function-argument limit (~1 MB of JSON)", async () => {
@@ -99,15 +122,15 @@ describe("encryptVault / decryptVault", () => {
             updatedAt: i,
         }));
 
-        const encrypted = await encryptVault(bigVault, masterKey);
+        const encrypted = await encryptVault({ entries: bigVault, folders: [] }, masterKey);
         expect(encrypted.ciphertext.length).toBeGreaterThan(1_000_000);
-        await expect(decryptVault(encrypted, masterKey)).resolves.toEqual(bigVault);
+        await expect(decryptVault(encrypted, masterKey)).resolves.toEqual({ entries: bigVault, folders: [] });
     });
 
     it("uses a fresh random IV on every call (never reused)", async () => {
         const { masterKey } = await deriveKeys("MasterPassw0rd!", "user@example.com", generateSalt());
-        const first = await encryptVault(SAMPLE_ENTRIES, masterKey);
-        const second = await encryptVault(SAMPLE_ENTRIES, masterKey);
+        const first = await encryptVault(SAMPLE_VAULT, masterKey);
+        const second = await encryptVault(SAMPLE_VAULT, masterKey);
         expect(first.iv).not.toBe(second.iv);
         // Même clé + IV différent -> ciphertext différent malgré des données identiques.
         expect(first.ciphertext).not.toBe(second.ciphertext);
@@ -116,14 +139,14 @@ describe("encryptVault / decryptVault", () => {
     it("fails to decrypt with the wrong key (this is the exact production bug this test guards against)", async () => {
         const keysA = await deriveKeys("PasswordA!", "a@example.com", generateSalt());
         const keysB = await deriveKeys("PasswordB!", "b@example.com", generateSalt());
-        const encrypted = await encryptVault(SAMPLE_ENTRIES, keysA.masterKey);
+        const encrypted = await encryptVault(SAMPLE_VAULT, keysA.masterKey);
 
         await expect(decryptVault(encrypted, keysB.masterKey)).rejects.toThrow(/decryption failed/i);
     });
 
     it("fails to decrypt tampered ciphertext (GCM integrity check)", async () => {
         const { masterKey } = await deriveKeys("MasterPassw0rd!", "user@example.com", generateSalt());
-        const encrypted = await encryptVault(SAMPLE_ENTRIES, masterKey);
+        const encrypted = await encryptVault(SAMPLE_VAULT, masterKey);
 
         const tampered = { ...encrypted, ciphertext: encrypted.ciphertext.slice(0, -4) + "AAAA" };
         await expect(decryptVault(tampered, masterKey)).rejects.toThrow();

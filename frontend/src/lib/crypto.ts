@@ -21,6 +21,7 @@
  */
 
 import { argon2id } from "hash-wasm";
+import { parseVaultPlaintext, serializeVault, type VaultData } from "./vault-format";
 
 // ─────────────────────────────────────────────────────────
 // CONSTANTES
@@ -90,6 +91,8 @@ export interface VaultEntry {
     password?: string;
     url?: string;
     notes?: string;
+    /** Dossier de l'entrée (voir vault-format.ts) ; absent = sans dossier. */
+    folderId?: string;
     createdAt: number;
     updatedAt: number;
 }
@@ -208,18 +211,18 @@ export async function deriveKeys(
  *  - La CONFIDENTIALITÉ (les données sont illisibles sans la clé)
  *  - L'INTÉGRITÉ     (toute modification est détectée — authentication tag)
  *
- * @param data      - Objet vault à chiffrer (sera sérialisé en JSON)
+ * @param data      - Contenu du coffre (entrées + dossiers), sérialisé au format courant
  * @param masterKey - Clé dérivée via deriveKeys()
  * @returns         - { ciphertext, iv } à stocker sur le serveur
  */
 export async function encryptVault(
-    data: VaultEntry[],
+    data: VaultData,
     masterKey: CryptoKey
 ): Promise<EncryptedPayload> {
     // IV unique et aléatoire pour CHAQUE chiffrement — obligatoire en GCM
     const iv = crypto.getRandomValues(new Uint8Array(new ArrayBuffer(IV_LENGTH)));
 
-    const plaintext = new TextEncoder().encode(JSON.stringify(data));
+    const plaintext = new TextEncoder().encode(serializeVault(data));
 
     const ciphertextBuffer = await crypto.subtle.encrypt(
         { name: "AES-GCM", iv },
@@ -239,13 +242,14 @@ export async function encryptVault(
  *
  * @param payload   - { ciphertext, iv } reçu du serveur
  * @param masterKey - Clé dérivée via deriveKeys()
- * @returns         - Tableau d'entrées vault déchiffrées
- * @throws          - Si la clé est incorrecte ou les données corrompues
+ * @returns         - Contenu du coffre (un coffre v1 est lu sans dossiers)
+ * @throws          - Si la clé est incorrecte, les données corrompues ou le
+ *                    format non reconnu
  */
 export async function decryptVault(
     payload: EncryptedPayload,
     masterKey: CryptoKey
-): Promise<VaultEntry[]> {
+): Promise<VaultData> {
     const iv         = base64ToBuffer(payload.iv).slice() as Uint8Array<ArrayBuffer>;
     const ciphertext = base64ToBuffer(payload.ciphertext).slice() as Uint8Array<ArrayBuffer>;
 
@@ -261,8 +265,7 @@ export async function decryptVault(
         throw new Error("Vault decryption failed: invalid key or corrupted data.");
     }
 
-    const plaintext = new TextDecoder().decode(plaintextBuffer);
-    return JSON.parse(plaintext) as VaultEntry[];
+    return parseVaultPlaintext(new TextDecoder().decode(plaintextBuffer));
 }
 
 // ─────────────────────────────────────────────────────────
