@@ -10,6 +10,7 @@
  * (lib/crypto.ts, lib/pwned.ts) à la date indiquée ci-dessous.
  */
 
+import { Link } from "react-router-dom";
 import { LegalLayout } from "./LegalLayout";
 
 export default function PrivacyPage() {
@@ -143,7 +144,7 @@ export default function PrivacyPage() {
 
             <h2>Cookies</h2>
             <p>
-                Voir notre <a href="/cookies">politique cookies</a> dédiée - en
+                Voir notre <Link to="/cookies" replace>politique cookies</Link> dédiée - en
                 résumé, un seul cookie strictement nécessaire à la connexion, aucun
                 traceur publicitaire ou d'analytics.
             </p>
