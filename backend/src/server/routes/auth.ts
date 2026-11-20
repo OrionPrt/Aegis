@@ -8,6 +8,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { MAX_VAULT_CIPHERTEXT_LENGTH, VAULT_BODY_LIMIT } from "../lib/limits.js";
 import { prisma } from "../lib/prisma.js";
 import {
     createSession,
@@ -70,7 +71,7 @@ const ChangePasswordSchema = z.object({
         ciphertext: z
             .string()
             .min(1)
-            .max(10 * 1024 * 1024)
+            .max(MAX_VAULT_CIPHERTEXT_LENGTH)
             .regex(/^[A-Za-z0-9+/=]+$/, "ciphertext must be base64"),
         iv: z
             .string()
@@ -256,7 +257,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     app.post(
         "/change-password",
-        { preHandler: [requireAuth] },
+        { bodyLimit: VAULT_BODY_LIMIT, preHandler: [requireAuth] },
         async (req: FastifyRequest, reply: FastifyReply) => {
             const { sub: userId } = req.user as JwtPayload;
 

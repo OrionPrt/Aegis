@@ -13,6 +13,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { MAX_VAULT_CIPHERTEXT_LENGTH, VAULT_BODY_LIMIT } from "../lib/limits.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth, MAX_FAILED_ATTEMPTS, LOCKOUT_DURATION_MS } from "./auth.js";
 import { getIp, getUserAgent, logAudit } from "../lib/audit.js";
@@ -36,7 +37,7 @@ const VaultPayloadSchema = z.object({
     ciphertext: z
         .string()
         .min(1)
-        .max(10 * 1024 * 1024) // 10 MB max - protection contre les abus
+        .max(MAX_VAULT_CIPHERTEXT_LENGTH) // voir lib/limits.ts
         .regex(/^[A-Za-z0-9+/=]+$/, "ciphertext must be base64"),
 
     // iv : vecteur d'initialisation AES-GCM (12 bytes → 16 chars base64)
@@ -95,7 +96,7 @@ export async function vaultRoutes(app: FastifyInstance) {
 
     app.put(
         "/",
-        { preHandler: [requireAuth] },
+        { bodyLimit: VAULT_BODY_LIMIT, preHandler: [requireAuth] },
         async (req: FastifyRequest, reply: FastifyReply) => {
             const { sub: userId } = req.user as JwtPayload;
 

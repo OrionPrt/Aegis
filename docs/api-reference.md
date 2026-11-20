@@ -100,11 +100,15 @@ Remplace intégralement le vault chiffré.
 
 ```json
 // Requête
-{ "ciphertext": "<base64, max 10 Mo>", "iv": "<16 chars base64>" }
+{ "ciphertext": "<base64, max 4 Mio>", "iv": "<16 chars base64>" }
 
 // Réponse 200
 { "message": "Vault sauvegardé." }
 ```
+
+Un corps au-delà de la limite (`VAULT_BODY_LIMIT`, `lib/limits.ts`) est refusé
+en `413` avec un message explicite. La limite reste sous les 4,5 Mo acceptés
+par les fonctions Vercel, en requête comme en réponse.
 
 ### `DELETE /api/vault` 🔒
 
