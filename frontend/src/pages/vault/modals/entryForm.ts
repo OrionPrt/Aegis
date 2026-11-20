@@ -5,6 +5,7 @@
 import { cvvLength, digitsOnly, luhn } from "../../../lib/card";
 import type { CardBrand } from "../../../lib/card";
 import { isValidTotpSecret, normalizeSecretInput } from "../../../lib/totp";
+import { normalizeEntryUrl } from "../../../lib/url";
 import type { EntryCategory, EntryFormData, VaultEntryExtended } from "../types";
 
 export function initialFormData(entry: VaultEntryExtended | null, defaultCategory: EntryCategory): EntryFormData {
@@ -33,7 +34,7 @@ function validateLogin(form: EntryFormData): string | null {
     if (form.totpSecret?.trim() && !isValidTotpSecret(form.totpSecret)) {
         return "La clé secrète 2FA est invalide.";
     }
-    return null;
+    return normalizeEntryUrl(form.url ?? "").error ?? null;
 }
 
 function validateCard(form: EntryFormData, panDigits: string, brand: CardBrand): string | null {
@@ -89,7 +90,7 @@ export function toEntryData(
         tags:          tagsInput.split(",").map((t) => t.trim()).filter(Boolean),
         username:      isLogin ? form.username : undefined,
         password:      isLogin ? form.password : undefined,
-        url:           isLogin ? form.url : undefined,
+        url:           isLogin ? normalizeEntryUrl(form.url ?? "").url : undefined,
         totpSecret:    totp?.secret,
         totpAlgorithm: totp?.algorithm,
         totpDigits:    totp?.digits,
