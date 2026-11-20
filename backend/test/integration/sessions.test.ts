@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { buildTestApp, uniqueEmail, fakeAuthKeyHex, fakeSaltBase64, getCookie } from "../helpers.js";
+import { buildTestApp, uniqueEmail, fakeAuthKeyHex, fakeSaltBase64, getCookie, registerVerified } from "../helpers.js";
 import { prisma } from "../../src/server/lib/prisma.js";
 
 describe("/api/sessions", () => {
@@ -20,12 +20,9 @@ describe("/api/sessions", () => {
         emails.length = 0;
     });
 
+    /** Compte confirmé et connecté : réponse du login (jeton + cookie). */
     async function register(email: string, authKeyHex: string) {
-        return app.inject({
-            method: "POST",
-            url: "/api/auth/register",
-            payload: { email, authKeyHex, saltBase64: fakeSaltBase64() },
-        });
+        return registerVerified(app, email, authKeyHex);
     }
 
     it("rejects unauthenticated access with 401", async () => {

@@ -1,4 +1,9 @@
 import type { Page } from "@playwright/test";
+import { createHash, randomBytes } from "node:crypto";
+import { PrismaClient } from "@prisma/client";
+
+// Même base que le backend lancé par Playwright (DATABASE_URL).
+const prisma = new PrismaClient();
 
 export function uniqueEmail(prefix = "e2e"): string {
     return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`;
@@ -11,7 +16,29 @@ export async function registerViaUi(page: Page, email: string, password: string)
     await page.fill("#password", password);
     await page.fill("#confirm", password);
     await page.click('button[type="submit"]');
+    await page.getByRole("status").filter({ hasText: "email de confirmation" }).waitFor({ timeout: 15_000 });
+
+    await confirmEmailViaLink(page, email);
+    await loginViaUi(page, email, password);
     await page.waitForURL("**/vault", { timeout: 15_000 });
+}
+
+/**
+ * Aucun email n'est envoyé pendant les tests : on pose en base un jeton
+ * connu, comme celui du lien de l'email, puis on ouvre ce lien et on confirme.
+ */
+export async function confirmEmailViaLink(page: Page, email: string): Promise<void> {
+    const token = randomBytes(32).toString("base64url");
+    await prisma.user.update({
+        where: { email },
+        data:  {
+            emailVerificationTokenHash: createHash("sha256").update(token).digest("hex"),
+            emailVerificationExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+    });
+    await page.goto(`/verify-email?token=${token}`);
+    await page.click('button:has-text("Confirmer mon adresse")');
+    await page.getByRole("status").filter({ hasText: "Adresse confirmée" }).waitFor({ timeout: 10_000 });
 }
 
 export async function loginViaUi(page: Page, email: string, password: string): Promise<void> {

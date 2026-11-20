@@ -101,6 +101,24 @@ export async function sendPasswordChangedEmail(to: string, ctx: EmailEventContex
     );
 }
 
+export async function sendVerificationEmail(to: string, link: string): Promise<void> {
+    await sendEmail(
+        to,
+        "Confirmez votre adresse email pour Aegis",
+        layout("Confirmez votre adresse email", `
+            <p>Pour activer votre compte Aegis, confirmez que cette adresse vous appartient :</p>
+            <p style="margin: 20px 0;">
+                <a href="${escapeHtml(link)}" style="display: inline-block; padding: 10px 18px; background: #1a1a1a; color: #fff; text-decoration: none; border-radius: 6px;">Confirmer mon adresse</a>
+            </p>
+            <p style="font-size: 13px; color: #555;">Le lien est valable 24 heures et ne sert qu'une fois.
+            Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>
+            <span style="word-break: break-all;">${escapeHtml(link)}</span></p>
+            <p style="color: #555;">Vous n'êtes pas à l'origine de cette inscription ? Ignorez cet
+            email : aucun compte ne sera activé avec votre adresse.</p>
+        `)
+    );
+}
+
 export async function sendAccountLockedEmail(to: string, ctx: EmailEventContext): Promise<void> {
     await sendEmail(
         to,

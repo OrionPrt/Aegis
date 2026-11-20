@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { buildTestApp, uniqueEmail, fakeAuthKeyHex, fakeSaltBase64, getCookie } from "../helpers.js";
+import { buildTestApp, uniqueEmail, fakeAuthKeyHex, fakeSaltBase64, getCookie, registerVerified } from "../helpers.js";
 import { prisma } from "../../src/server/lib/prisma.js";
+import { throttleKey } from "../../src/server/lib/lockout.js";
 
 describe("/api/auth", () => {
     let app: FastifyInstance;
@@ -20,33 +21,75 @@ describe("/api/auth", () => {
         emails.length = 0;
     });
 
+    /** Compte confirmé et connecté : réponse du login (jeton + cookie). */
     async function register(email: string, authKeyHex = fakeAuthKeyHex()) {
-        return app.inject({
-            method: "POST",
-            url: "/api/auth/register",
-            payload: { email, authKeyHex, saltBase64: fakeSaltBase64() },
-        });
+        return registerVerified(app, email, authKeyHex);
     }
 
     describe("POST /register", () => {
-        it("creates an account and returns an access token + refresh cookie", async () => {
+        function rawRegister(email: string, authKeyHex = fakeAuthKeyHex()) {
+            return app.inject({
+                method: "POST",
+                url: "/api/auth/register",
+                payload: { email, authKeyHex, saltBase64: fakeSaltBase64() },
+            });
+        }
+
+        it("creates a pending account without opening a session", async () => {
             const email = uniqueEmail("register");
             emails.push(email);
 
-            const res = await register(email);
+            const res = await rawRegister(email);
 
-            expect(res.statusCode).toBe(201);
-            expect(res.json().accessToken).toBeTypeOf("string");
-            expect(getCookie(res, "aegis_rt")).toBeTypeOf("string");
+            expect(res.statusCode).toBe(202);
+            expect(res.json().accessToken).toBeUndefined();
+            expect(getCookie(res, "aegis_rt")).toBeUndefined();
+            const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+            expect(user.emailVerifiedAt).toBeNull();
+            expect(user.emailVerificationTokenHash).toMatch(/^[0-9a-f]{64}$/);
+            expect(user.emailVerificationExpiresAt!.getTime()).toBeGreaterThan(Date.now());
         });
 
-        it("rejects a duplicate email with 409 without leaking which field is wrong", async () => {
+        it("answers a registration on a taken address exactly like a new one, and changes nothing", async () => {
             const email = uniqueEmail("dup");
             emails.push(email);
-            await register(email);
+            await register(email, fakeAuthKeyHex("owner"));
+            const before = await prisma.user.findUniqueOrThrow({ where: { email } });
 
-            const res = await register(email);
-            expect(res.statusCode).toBe(409);
+            const fresh = await rawRegister(uniqueEmail("dup-fresh"));
+            const dup = await rawRegister(email, fakeAuthKeyHex("intruder"));
+
+            expect(dup.statusCode).toBe(fresh.statusCode);
+            expect(dup.json()).toEqual(fresh.json());
+            const after = await prisma.user.findUniqueOrThrow({ where: { email } });
+            expect(after.authKeyHash).toBe(before.authKeyHash);
+            await prisma.user.deleteMany({ where: { email: { startsWith: "dup-fresh" } } });
+        });
+
+        it("keeps a pending registration that is still valid instead of letting someone replace it", async () => {
+            const email = uniqueEmail("pending-keep");
+            emails.push(email);
+            await rawRegister(email, fakeAuthKeyHex("first"));
+            const first = await prisma.user.findUniqueOrThrow({ where: { email } });
+
+            await rawRegister(email, fakeAuthKeyHex("second"));
+
+            const after = await prisma.user.findUniqueOrThrow({ where: { email } });
+            expect(after.id).toBe(first.id);
+            expect(after.authKeyHash).toBe(first.authKeyHash);
+        });
+
+        it("replaces a pending registration whose link has expired", async () => {
+            const email = uniqueEmail("pending-expired");
+            emails.push(email);
+            await rawRegister(email, fakeAuthKeyHex("first"));
+            await prisma.user.update({ where: { email }, data: { emailVerificationExpiresAt: new Date(Date.now() - 1000) } });
+            const first = await prisma.user.findUniqueOrThrow({ where: { email } });
+
+            await rawRegister(email, fakeAuthKeyHex("second"));
+
+            const after = await prisma.user.findUniqueOrThrow({ where: { email } });
+            expect(after.id).not.toBe(first.id);
         });
 
         it("rejects a salt that is not 32 bytes of base64 with 400", async () => {
@@ -74,7 +117,7 @@ describe("/api/auth", () => {
             emails.push(email);
             const authKeyHex = fakeAuthKeyHex("b");
             const regRes = await register(email, authKeyHex);
-            expect(regRes.statusCode).toBe(201);
+            expect(regRes.statusCode).toBe(200);
 
             const res = await app.inject({ method: "GET", url: `/api/auth/salt?email=${encodeURIComponent(email)}` });
             expect(res.statusCode).toBe(200);
@@ -197,17 +240,32 @@ describe("/api/auth", () => {
             const statuses = results.map((r) => r.statusCode);
             expect(statuses.filter((code) => code === 401)).toHaveLength(3);
             expect(statuses.filter((code) => code === 429)).toHaveLength(5);
-            const user = await prisma.user.findUniqueOrThrow({ where: { email } });
-            expect(user.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+            const throttle = await prisma.authThrottle.findUniqueOrThrow({ where: { key: throttleKey(email) } });
+            expect(throttle.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+        });
+
+        it("locks an address without an account exactly like a registered one (no 429 oracle)", async () => {
+            const statuses: number[] = [];
+            const email = uniqueEmail("ghost-lockout");
+            for (let i = 0; i < 4; i++) {
+                const res = await app.inject({
+                    method: "POST",
+                    url: "/api/auth/login",
+                    payload: { email, authKeyHex: fakeAuthKeyHex("wrong") },
+                });
+                statuses.push(res.statusCode);
+            }
+            expect(statuses).toEqual([401, 401, 401, 429]);
         });
 
         it("starts a fresh count once the lock has expired (one mistake does not re-lock)", async () => {
             const email = uniqueEmail("lockout-expired");
             emails.push(email);
             await register(email, fakeAuthKeyHex("expired"));
-            await prisma.user.update({
-                where: { email },
-                data:  { failedAttempts: 3, lockedUntil: new Date(Date.now() - 1000) },
+            await prisma.authThrottle.upsert({
+                where:  { key: throttleKey(email) },
+                create: { key: throttleKey(email), failedAttempts: 3, lockedUntil: new Date(Date.now() - 1000) },
+                update: { failedAttempts: 3, lockedUntil: new Date(Date.now() - 1000) },
             });
 
             const res = await app.inject({
@@ -217,9 +275,9 @@ describe("/api/auth", () => {
             });
 
             expect(res.statusCode).toBe(401);
-            const user = await prisma.user.findUniqueOrThrow({ where: { email } });
-            expect(user.failedAttempts).toBe(1);
-            expect(user.lockedUntil).toBeNull();
+            const throttle = await prisma.authThrottle.findUniqueOrThrow({ where: { key: throttleKey(email) } });
+            expect(throttle.failedAttempts).toBe(1);
+            expect(throttle.lockedUntil).toBeNull();
         });
 
         it("resets the failed-attempts counter on a successful login", async () => {
@@ -241,8 +299,7 @@ describe("/api/auth", () => {
             });
             expect(ok.statusCode).toBe(200);
 
-            const user = await prisma.user.findUniqueOrThrow({ where: { email } });
-            expect(user.failedAttempts).toBe(0);
+            expect(await prisma.authThrottle.findUnique({ where: { key: throttleKey(email) } })).toBeNull();
         });
 
         it("revokes the previous session on same-device re-login (no ghost sessions)", async () => {

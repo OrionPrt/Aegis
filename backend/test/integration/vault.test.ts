@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { buildTestApp, uniqueEmail, fakeAuthKeyHex, fakeSaltBase64 } from "../helpers.js";
+import { buildTestApp, uniqueEmail, fakeAuthKeyHex, fakeSaltBase64, registerVerified } from "../helpers.js";
 import { prisma } from "../../src/server/lib/prisma.js";
 
 describe("/api/vault", () => {
@@ -21,11 +21,7 @@ describe("/api/vault", () => {
     });
 
     async function registerAndLogin(email: string, authKeyHex: string) {
-        await app.inject({
-            method: "POST",
-            url: "/api/auth/register",
-            payload: { email, authKeyHex, saltBase64: fakeSaltBase64() },
-        });
+        await registerVerified(app, email, authKeyHex);
         return authKeyHex;
     }
 

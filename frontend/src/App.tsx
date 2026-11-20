@@ -7,6 +7,7 @@ import SecurityAuditPage from "./pages/SecurityAuditPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
 import CookiesPage from "./pages/CookiesPage";
+import VerifyEmailPage from "./pages/VerifyEmailPage";
 
 export default function App() {
   return (
@@ -37,6 +38,9 @@ export default function App() {
 
           {/* Login */}
           <Route path="/login" element={<AuthPage />} />
+
+          {/* Lien de confirmation reçu par email après l'inscription */}
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
 
           {/* Pages légales - publiques */}
           <Route path="/privacy" element={<PrivacyPage />} />

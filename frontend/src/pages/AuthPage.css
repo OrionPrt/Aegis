@@ -396,3 +396,52 @@
     flex-shrink: 0;
     margin-top: 3px;
 }
+
+/* Renvoi du lien de confirmation, sous l'erreur « adresse non confirmée » */
+.auth-resend {
+    align-self: flex-start;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent);
+    font: inherit;
+    font-size: var(--text-sm);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* ── Confirmation de l'adresse email (VerifyEmailPage) ──── */
+.verify-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.verify-brand {
+    margin-bottom: var(--space-2);
+}
+
+.verify-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.verify-text {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.6;
+}
+
+.verify-action {
+    display: block;
+    text-align: center;
+    text-decoration: none;
+}
+
+.verify-link {
+    color: var(--accent);
+    font-size: var(--text-sm);
+}

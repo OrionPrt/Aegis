@@ -34,6 +34,7 @@
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Accès Redis pour le rate limiting (`lib/rate-limit.ts`) | Oui - l'API refuse de démarrer en production sans eux |
 | `RESEND_API_KEY` | Envoi des emails de sécurité | Oui (vide accepté en dev pour désactiver l'envoi) |
 | `EMAIL_FROM` | Adresse d'expédition des emails (défaut : `Aegis <onboarding@resend.dev>`) | Non |
+| `APP_URL` | Adresse publique du site (ex. `https://www.aegis-protect.fr`), pour les liens des emails de confirmation. Sur Vercel, le domaine de production (`VERCEL_PROJECT_PRODUCTION_URL`) sert de repli | Recommandé - l'API refuse de démarrer en production sans l'un des deux |
 | `AEGIS_DUMMY_SALT` | Secret (32+ caractères aléatoires) dont dérivent les sels factices de `/auth/salt` pour les emails sans compte ; `JWT_SECRET` sert de repli s'il est absent | Recommandé |
 | `NODE_ENV` | `production` active les cookies `Secure` et masque le détail des erreurs internes | Non |
 | `PORT` | Port d'écoute en dev local uniquement (défaut `3000`) | Non |

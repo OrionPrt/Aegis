@@ -14,6 +14,7 @@ vi.mock("resend", () => ({
 let sendPasswordChangedEmail: typeof import("./email.js").sendPasswordChangedEmail;
 let sendAccountLockedEmail: typeof import("./email.js").sendAccountLockedEmail;
 let sendNewIpLoginEmail: typeof import("./email.js").sendNewIpLoginEmail;
+let sendVerificationEmail: typeof import("./email.js").sendVerificationEmail;
 
 beforeAll(async () => {
     // email.ts lit RESEND_API_KEY au chargement du module pour décider de
@@ -24,6 +25,7 @@ beforeAll(async () => {
     sendPasswordChangedEmail = mod.sendPasswordChangedEmail;
     sendAccountLockedEmail = mod.sendAccountLockedEmail;
     sendNewIpLoginEmail = mod.sendNewIpLoginEmail;
+    sendVerificationEmail = mod.sendVerificationEmail;
 });
 
 const ctx: EmailEventContext = { ipAddress: "203.0.113.5", userAgent: "Mozilla/5.0 (Test)" };
@@ -59,6 +61,17 @@ describe("email notifications", () => {
         const call = sendMock.mock.calls[0][0];
         expect(call.subject).toContain("bloqué");
         expect(call.html).toContain("15 minutes");
+    });
+
+    it("sends the confirmation link, valid 24 hours, to the address being registered", async () => {
+        sendMock.mockClear();
+        const link = "https://app.aegis.example/verify-email?token=abc_DEF-123";
+        await sendVerificationEmail("new@example.com", link);
+        const call = sendMock.mock.calls[0][0];
+        expect(call.to).toBe("new@example.com");
+        expect(call.subject).toContain("Confirmez");
+        expect(call.html).toContain(`href="${link}"`);
+        expect(call.html).toContain("24 heures");
     });
 
     it("never throws even if the Resend API call rejects", async () => {

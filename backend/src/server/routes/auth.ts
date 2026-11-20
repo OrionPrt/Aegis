@@ -24,7 +24,8 @@ import {
     getUserAgent,
     SESSION_TTL_MS,
 } from "../lib/audit.js";
-import { sendPasswordChangedEmail, sendNewIpLoginEmail } from "../lib/email.js";
+import { sendPasswordChangedEmail, sendNewIpLoginEmail, sendVerificationEmail } from "../lib/email.js";
+import { hashVerificationToken, newVerificationToken, verificationLink } from "../lib/email-verification.js";
 import { clearAttempts, recordFailedAttempt, reserveAttempt, sendLocked } from "../lib/lockout.js";
 import { CURRENT_KDF_VERSION, KdfVersionSchema } from "../lib/kdf.js";
 
@@ -74,6 +75,23 @@ const RegisterSchema = z.object({
     // Absente pour un client antérieur au versionnage : version actuelle.
     kdfVersion: KdfVersionSchema.default(CURRENT_KDF_VERSION),
 });
+
+const VerifyEmailSchema = z.object({
+    token: z.string().min(20).max(100),
+});
+
+const ResendVerificationSchema = z.object({
+    email: z.string().email().max(254).toLowerCase().trim(),
+});
+
+/** Réponse identique de l'inscription, que l'adresse soit libre ou non. */
+const REGISTER_ACCEPTED_MESSAGE =
+    "Si cette adresse peut être utilisée, un email de confirmation vient d'y être envoyé. Ouvrez le lien qu'il contient, puis connectez-vous.";
+
+/** Délai aléatoire ajouté aux réponses qui ne doivent pas révéler si un compte existe. */
+function uniformDelay(): Promise<void> {
+    return new Promise((r) => setTimeout(r, 200 + Math.random() * 200));
+}
 
 const LoginSchema = z.object({
     email:      z.string().email().max(254).toLowerCase().trim(),
@@ -125,6 +143,9 @@ export async function authRoutes(app: FastifyInstance) {
 
     // ── POST /api/auth/register ─────────────────────────────
 
+    // Ne crée pas de session : le compte n'est utilisable qu'une fois
+    // l'adresse confirmée. La réponse est la même que l'adresse soit libre,
+    // déjà inscrite ou en attente de confirmation - elle ne révèle rien.
     app.post("/register", async (req: FastifyRequest, reply: FastifyReply) => {
         const parsed = RegisterSchema.safeParse(req.body);
         if (!parsed.success) {
@@ -132,27 +153,95 @@ export async function authRoutes(app: FastifyInstance) {
         }
 
         const { email, authKeyHex, saltBase64, kdfVersion } = parsed.data;
+        const authKeyHash = await bcrypt.hash(authKeyHex, BCRYPT_ROUNDS);
 
-        const existing = await prisma.user.findUnique({ where: { email } });
-        if (existing) {
-            await bcrypt.hash(authKeyHex, BCRYPT_ROUNDS); // timing constant
-            return reply.status(409).send({ message: "Impossible de créer ce compte." });
+        const existing = await prisma.user.findUnique({
+            where:  { email },
+            select: { id: true, emailVerifiedAt: true, emailVerificationExpiresAt: true },
+        });
+        const pendingStillValid = existing && !existing.emailVerifiedAt
+            && existing.emailVerificationExpiresAt !== null && existing.emailVerificationExpiresAt > new Date();
+
+        if (existing && (existing.emailVerifiedAt || pendingStillValid)) {
+            // Compte actif, ou inscription en attente encore valable (la
+            // remplacer laisserait un tiers évincer une inscription légitime) :
+            // rien à faire. Le titulaire peut redemander le lien depuis
+            // l'écran de connexion.
+            await uniformDelay();
+            return reply.status(202).send({ message: REGISTER_ACCEPTED_MESSAGE });
         }
 
-        const authKeyHash = await bcrypt.hash(authKeyHex, BCRYPT_ROUNDS);
+        // Inscription jamais confirmée et expirée : elle ne contient rien, on
+        // la remplace par celle-ci.
+        if (existing) await prisma.user.delete({ where: { id: existing.id } });
+
+        const { token, tokenHash, expiresAt } = newVerificationToken();
         const user = await prisma.user.create({
-            data: { email, authKeyHash, saltBase64, kdfVersion },
+            data: {
+                email, authKeyHash, saltBase64, kdfVersion,
+                emailVerifiedAt:            null,
+                emailVerificationTokenHash: tokenHash,
+                emailVerificationExpiresAt: expiresAt,
+            },
         });
-
-        const { refreshToken, sessionId } = await createSession(user.id, req);
-        const accessToken = await signAccessToken(reply, { sub: user.id, email, sid: sessionId });
-
         await logAudit(user.id, "REGISTER", req);
+        await sendVerificationEmail(email, verificationLink(token));
 
-        return reply
-            .setCookie("aegis_rt", refreshToken, cookieOpts())
-            .status(201)
-            .send({ accessToken, expiresAt: accessTokenExpiresAt() });
+        await uniformDelay();
+        return reply.status(202).send({ message: REGISTER_ACCEPTED_MESSAGE });
+    });
+
+    // ── POST /api/auth/verify-email ─────────────────────────
+
+    app.post("/verify-email", async (req: FastifyRequest, reply: FastifyReply) => {
+        const parsed = VerifyEmailSchema.safeParse(req.body);
+        if (!parsed.success) {
+            return reply.status(400).send({ message: "Lien de confirmation invalide ou expiré." });
+        }
+
+        const user = await prisma.user.findUnique({
+            where:  { emailVerificationTokenHash: hashVerificationToken(parsed.data.token) },
+            select: { id: true, emailVerificationExpiresAt: true },
+        });
+        if (!user || !user.emailVerificationExpiresAt || user.emailVerificationExpiresAt <= new Date()) {
+            return reply.status(400).send({ message: "Lien de confirmation invalide ou expiré." });
+        }
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data:  { emailVerifiedAt: new Date(), emailVerificationTokenHash: null, emailVerificationExpiresAt: null },
+        });
+        await logAudit(user.id, "EMAIL_VERIFIED", req);
+
+        return reply.send({ message: "Adresse confirmée. Vous pouvez vous connecter." });
+    });
+
+    // ── POST /api/auth/resend-verification ──────────────────
+
+    // Même réponse dans tous les cas ; un nouveau lien n'est envoyé qu'à une
+    // inscription en attente (l'ancien lien cesse de fonctionner).
+    app.post("/resend-verification", async (req: FastifyRequest, reply: FastifyReply) => {
+        const parsed = ResendVerificationSchema.safeParse(req.body);
+        if (!parsed.success) {
+            return reply.status(400).send({ message: "Email invalide." });
+        }
+        const { email } = parsed.data;
+
+        const pending = await prisma.user.findFirst({
+            where:  { email, emailVerifiedAt: null },
+            select: { id: true },
+        });
+        if (pending) {
+            const { token, tokenHash, expiresAt } = newVerificationToken();
+            await prisma.user.update({
+                where: { id: pending.id },
+                data:  { emailVerificationTokenHash: tokenHash, emailVerificationExpiresAt: expiresAt },
+            });
+            await sendVerificationEmail(email, verificationLink(token));
+        }
+
+        await uniformDelay();
+        return reply.status(202).send({ message: "Si une inscription attend d'être confirmée pour cette adresse, un nouveau lien vient d'y être envoyé." });
     });
 
     // ── GET /api/auth/salt ──────────────────────────────────
@@ -187,20 +276,29 @@ export async function authRoutes(app: FastifyInstance) {
         const { email, authKeyHex } = parsed.data;
         const user = await prisma.user.findUnique({ where: { email } });
 
-        if (user) {
-            const retryAfter = await reserveAttempt(user.id);
-            if (retryAfter !== null) return sendLocked(reply, retryAfter);
-        }
+        // Même compteur pour une adresse inscrite ou non : le 429 ne révèle pas
+        // qu'un compte existe.
+        const retryAfter = await reserveAttempt(email);
+        if (retryAfter !== null) return sendLocked(reply, retryAfter);
 
         const dummyHash = "$2b$12$invaliddummyhashfortimingattackmitigation000000000000";
         const isValid   = await bcrypt.compare(authKeyHex, user?.authKeyHash ?? dummyHash);
 
         if (!user || !isValid) {
-            if (user) await recordFailedAttempt(user.id, user.email, req, "LOGIN_FAILED");
+            await recordFailedAttempt(email, req, user ? { userId: user.id, action: "LOGIN_FAILED" } : null);
             return reply.status(401).send({ message: "Identifiants incorrects." });
         }
 
-        await clearAttempts(user.id);
+        await clearAttempts(email);
+
+        // Seul qui connaît le mot de passe maître apprend que l'adresse attend
+        // sa confirmation : ça ne révèle rien à un tiers.
+        if (!user.emailVerifiedAt) {
+            return reply.status(403).send({
+                message: "Confirmez d'abord votre adresse email : ouvrez le lien reçu à l'inscription.",
+                code:    "EMAIL_NOT_VERIFIED",
+            });
+        }
 
         // Détection "nouvelle IP" - avant d'enregistrer CE login, pour savoir
         // s'il y a déjà eu une connexion réussie depuis cette IP auparavant.
@@ -270,14 +368,17 @@ export async function authRoutes(app: FastifyInstance) {
                 return reply.status(404).send({ message: "Utilisateur introuvable." });
             }
 
-            const retryAfter = await reserveAttempt(userId);
+            const retryAfter = await reserveAttempt(user.email);
             if (retryAfter !== null) return sendLocked(reply, retryAfter);
 
             const isValid = await bcrypt.compare(currentAuthKeyHex, user.authKeyHash);
             if (!isValid) {
-                await recordFailedAttempt(userId, user.email, req, "PASSWORD_CHANGE_ATTEMPT", { success: false });
+                await recordFailedAttempt(user.email, req, {
+                    userId, action: "PASSWORD_CHANGE_ATTEMPT", metadata: { success: false },
+                });
                 return reply.status(401).send({ message: "Mot de passe actuel incorrect." });
             }
+            await clearAttempts(user.email);
 
             const newAuthKeyHash = await bcrypt.hash(newAuthKeyHex, BCRYPT_ROUNDS);
 
@@ -288,8 +389,6 @@ export async function authRoutes(app: FastifyInstance) {
                     vaultData:      vault.ciphertext,
                     vaultIv:        vault.iv,
                     vaultVersion:   { increment: 1 },
-                    failedAttempts: 0,
-                    lockedUntil:    null,
                 },
             });
             if (count === 0) {

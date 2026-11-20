@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams, useLocation, Link } from "react-router-dom";
 import { Shield, Eye, EyeOff, Loader2, AlertTriangle, KeyRound, Lock, ShieldCheck, Code2 } from "lucide-react";
-import { login, register, AuthError } from "../lib/auth-client";
+import { login, register, resendVerification, AuthError } from "../lib/auth-client";
 import type { LoginRedirectState } from "../components/ProtectedRoute";
 import { assessMasterPassword, guessesToBits, rejectionMessage, MIN_MASTER_PASSWORD_LENGTH } from "../lib/password-strength";
 import { useMasterPasswordStrength } from "../hooks/useMasterPasswordStrength";
@@ -44,6 +44,10 @@ export default function AuthPage() {
     const [loading, setLoading]     = useState(false);
     const [error, setError]         = useState<string | null>(null);
     const [argonStep, setArgonStep] = useState<string | null>(null);
+    // Message après l'inscription ou le renvoi du lien de confirmation.
+    const [notice, setNotice]       = useState<string | null>(null);
+    // Adresse dont la connexion attend la confirmation : propose de renvoyer le lien.
+    const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
 
     const assessment = useMasterPasswordStrength(mode === "register" ? form.password : "", [form.email]);
     const strength = assessment && { score: assessment.score, entropy: guessesToBits(assessment.guessesLog10) };
@@ -58,6 +62,18 @@ export default function AuthPage() {
         setSearchParams(next === "register" ? { mode: "register" } : {}, { replace: true });
         setError(null);
         setForm({ email: form.email, password: "", confirmPassword: "" });
+    }
+
+    async function handleResend() {
+        if (!unverifiedEmail) return;
+        try {
+            const message = await resendVerification(unverifiedEmail);
+            setError(null);
+            setUnverifiedEmail(null);
+            setNotice(message);
+        } catch (err) {
+            setError(err instanceof AuthError ? err.message : "Une erreur inattendue est survenue.");
+        }
     }
 
     // ── Validation ─────────────────────────────────────────
@@ -87,6 +103,8 @@ export default function AuthPage() {
 
         setLoading(true);
         setError(null);
+        setNotice(null);
+        setUnverifiedEmail(null);
 
         try {
             if (mode === "register") {
@@ -101,14 +119,19 @@ export default function AuthPage() {
                 // Argon2id prend ~1-3s — on informe l'utilisateur
                 setArgonStep("Dérivation de la clé en cours…");
                 await login(form.email, form.password);
+                navigate("/vault");
             } else {
                 setArgonStep("Génération de votre clé de chiffrement…");
-                await register(form.email, form.password);
+                const message = await register(form.email, form.password);
+                // Pas de session : le compte s'active par le lien reçu par
+                // email, puis par une connexion normale.
+                switchMode("login");
+                setNotice(message);
             }
-            navigate("/vault");
         } catch (err) {
             if (err instanceof AuthError) {
                 setError(err.message);
+                if (err.code === "EMAIL_NOT_VERIFIED") setUnverifiedEmail(form.email);
             } else {
                 setError("Une erreur inattendue est survenue.");
             }
@@ -280,11 +303,24 @@ export default function AuthPage() {
                             </div>
                         )}
 
+                        {/* Après l'inscription ou un renvoi du lien de confirmation */}
+                        {notice && !error && (
+                            <div className="auth-notice" role="status">
+                                <ShieldCheck size={14} strokeWidth={2} /> {notice}
+                            </div>
+                        )}
+
                         {/* Message d'erreur */}
                         {error && (
                             <div className="auth-error" role="alert">
                                 <AlertTriangle size={14} strokeWidth={2} /> {error}
                             </div>
+                        )}
+
+                        {unverifiedEmail && error && (
+                            <button type="button" className="auth-resend" onClick={handleResend}>
+                                Renvoyer le lien de confirmation
+                            </button>
                         )}
 
                         {/* Avertissement master password — inscription uniquement */}
