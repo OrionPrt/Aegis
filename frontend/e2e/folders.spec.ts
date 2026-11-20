@@ -138,3 +138,18 @@ test("dropping an entry card on a folder of the sidebar files it there", async (
     await folderNav(page, "Perso").click();
     await expect(entry(page, "GitHub")).toBeVisible();
 });
+
+test("on mobile, closing « Nouveau dossier » opened from the folder list gives focus back to the Dossiers tab", async ({ page }) => {
+    await registerViaUi(page, uniqueEmail("folders-focus"), PASSWORD);
+    await page.setViewportSize({ width: 375, height: 760 });
+
+    const foldersTab = page.locator(".nav-item-folders-mobile");
+    await foldersTab.click();
+    await page.getByRole("dialog", { name: "Dossiers" }).getByRole("button", { name: "Nouveau dossier" }).click();
+    await expect(page.getByRole("dialog", { name: "Nouveau dossier" })).toBeVisible();
+
+    await page.keyboard.press("Escape");
+
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(foldersTab).toBeFocused();
+});

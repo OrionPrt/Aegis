@@ -23,6 +23,26 @@ function Harness({ dismissible = true, onClose = vi.fn() }: { dismissible?: bool
     );
 }
 
+/** Une fenêtre qui en ouvre une autre à sa place (ex. « Nouveau dossier » dans la liste des dossiers). */
+function SwapHarness() {
+    const [dialog, setDialog] = useState<"list" | "create" | null>(null);
+    return (
+        <>
+            <button onClick={() => setDialog("list")}>Dossiers</button>
+            {dialog === "list" && (
+                <Modal title="Dossiers" onClose={() => setDialog(null)}>
+                    <button onClick={() => setDialog("create")}>Nouveau dossier</button>
+                </Modal>
+            )}
+            {dialog === "create" && (
+                <Modal title="Nouveau dossier" onClose={() => setDialog(null)}>
+                    <input aria-label="Nom du dossier" />
+                </Modal>
+            )}
+        </>
+    );
+}
+
 describe("Modal", () => {
     it("focuses the field marked data-autofocus, even when StrictMode replays the effect", async () => {
         render(<StrictMode><Harness /></StrictMode>);
@@ -82,5 +102,19 @@ describe("Modal", () => {
 
         expect(onClose).not.toHaveBeenCalled();
         expect(screen.getByRole("button", { name: "Fermer" })).toBeDisabled();
+    });
+
+    it("gives focus back to the first opener when it replaced another dialog whose button is gone", async () => {
+        const user = userEvent.setup();
+        render(<StrictMode><SwapHarness /></StrictMode>);
+
+        await user.click(screen.getByText("Dossiers"));
+        await user.click(screen.getByText("Nouveau dossier"));
+        expect(screen.getByRole("dialog", { name: "Nouveau dossier" })).toBeInTheDocument();
+
+        await user.keyboard("{Escape}");
+
+        expect(screen.queryByRole("dialog")).toBeNull();
+        expect(screen.getByText("Dossiers")).toHaveFocus();
     });
 });
