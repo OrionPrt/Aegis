@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
-    register, login, logout, clearSession, getSession, isAuthenticated,
+    register, login, logout, clearSession, getSession, isAuthenticated, subscribeSession,
     apiFetch, changeMasterPassword, deleteAccount, AuthError,
 } from "./auth-client.js";
 
@@ -220,5 +220,25 @@ describe("changeMasterPassword / deleteAccount (dedicated fetch, no auto-retry)"
         const body = JSON.parse(deleteCall[1].body);
         expect(body.authKeyHex).toMatch(/^[0-9a-f]{64}$/);
         expect(getSession()).toBeNull();
+    });
+});
+
+describe("session subscription", () => {
+    afterEach(() => {
+        clearSession();
+        vi.unstubAllGlobals();
+    });
+
+    it("notifies subscribers when a session starts and when it ends", async () => {
+        const listener = vi.fn();
+        const unsubscribe = subscribeSession(listener);
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "t", expiresAt: FAR_FUTURE }, 201)));
+
+        await register("user@example.com", "MasterPassw0rd!");
+        clearSession();
+        unsubscribe();
+        clearSession();
+
+        expect(listener).toHaveBeenCalledTimes(2);
     });
 });
