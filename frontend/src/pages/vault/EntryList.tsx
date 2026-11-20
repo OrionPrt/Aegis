@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { useTouchReorder } from "../../hooks/useTouchReorder";
+import { useEffect, useRef, useState } from "react";
+import { useTouchReorder, ENTRY_ID_ATTRIBUTE } from "../../hooks/useTouchReorder";
 import type { DropPlacement } from "../../lib/reorder";
 import EmptyState from "./EmptyState";
 import EntryCard from "./EntryCard";
@@ -37,8 +37,31 @@ export default function EntryList({ entries, selectedId, search, saving, onSelec
         setDragOverId(null);
     }
 
+    // Déplacement au clavier : la carte garde le focus à sa nouvelle place,
+    // et la nouvelle position est annoncée aux lecteurs d'écran.
+    const [announcement, setAnnouncement] = useState("");
+    const keyboardMovedId = useRef<string | null>(null);
+
+    function moveByKeyboard(entry: VaultEntryExtended, direction: -1 | 1) {
+        const index = entries.findIndex((e) => e.id === entry.id);
+        const neighbor = entries[index + direction];
+        if (!neighbor) return;
+        keyboardMovedId.current = entry.id;
+        setAnnouncement(`${entry.label} : position ${index + 1 + direction} sur ${entries.length}.`);
+        onReorder(entry.id, neighbor.id, direction < 0 ? "before" : "after");
+    }
+
+    useEffect(() => {
+        const id = keyboardMovedId.current;
+        if (!id) return;
+        keyboardMovedId.current = null;
+        const card = entryListRef.current?.querySelector<HTMLElement>(`[${ENTRY_ID_ATTRIBUTE}="${CSS.escape(id)}"]`);
+        if (card && document.activeElement !== card) card.focus();
+    }, [entries]);
+
     return (
         <div className="entry-list" ref={entryListRef}>
+            <p className="sr-only" aria-live="polite">{announcement}</p>
             {entries.length === 0 ? (
                 <EmptyState search={search} />
             ) : (
@@ -64,6 +87,7 @@ export default function EntryList({ entries, selectedId, search, saving, onSelec
                             if (draggedId) onReorder(draggedId, entry.id);
                             endNativeDrag();
                         }}
+                        onMove={(direction) => moveByKeyboard(entry, direction)}
                     />
                 ))
             )}

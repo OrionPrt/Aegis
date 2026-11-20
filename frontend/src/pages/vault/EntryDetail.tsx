@@ -73,7 +73,7 @@ export default function EntryDetail({ entry, saving, onBack, onEdit, onDelete }:
                 <button className="btn-edit" onClick={onEdit} disabled={saving}>
                     <Pencil size={13} strokeWidth={2} /> Modifier
                 </button>
-                <button className="btn-delete" onClick={onDelete} title="Supprimer" disabled={saving}>
+                <button className="btn-delete" onClick={onDelete} title="Supprimer" aria-label="Supprimer l'entrée" disabled={saving}>
                     <Trash2 size={14} strokeWidth={2} />
                 </button>
             </div>
@@ -114,21 +114,28 @@ interface CopyableProps {
     copyToClipboard: CopyToClipboard;
 }
 
-function CopyButton({ field, value, copied, copyToClipboard }: CopyableProps & { field: string; value: string }) {
+function CopyButton({ field, label, value, copied, copyToClipboard }: CopyableProps & { field: string; label: string; value: string }) {
     return (
         <button
             className={`icon-btn ${copied === field ? "copied" : ""}`}
             onClick={() => copyToClipboard(value, field)}
             title="Copier"
+            aria-label={copied === field ? `${label} copié` : `Copier ${label}`}
         >
             {copied === field ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
         </button>
     );
 }
 
-function RevealButton({ revealed, onToggle }: { revealed: boolean; onToggle: () => void }) {
+function RevealButton({ revealed, label, onToggle }: { revealed: boolean; label: string; onToggle: () => void }) {
     return (
-        <button className="icon-btn" onClick={onToggle} title={revealed ? "Masquer" : "Afficher"}>
+        <button
+            className="icon-btn"
+            onClick={onToggle}
+            title={revealed ? "Masquer" : "Afficher"}
+            aria-label={`${revealed ? "Masquer" : "Afficher"} ${label}`}
+            aria-pressed={revealed}
+        >
             {revealed ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
         </button>
     );
@@ -143,7 +150,7 @@ function LoginDetail({ entry, copied, copyToClipboard }: CopyableProps & { entry
             <Field label="Identifiant">
                 <div className="field-value-row">
                     <span className="field-mono">{entry.username}</span>
-                    <CopyButton field="user" value={entry.username ?? ""} copied={copied} copyToClipboard={copyToClipboard} />
+                    <CopyButton field="user" label="l'identifiant" value={entry.username ?? ""} copied={copied} copyToClipboard={copyToClipboard} />
                 </div>
             </Field>
 
@@ -155,8 +162,8 @@ function LoginDetail({ entry, copied, copyToClipboard }: CopyableProps & { entry
                               : "•".repeat(Math.min((entry.password ?? "").length, 16))}
                         </span>
                     <div className="icon-btn-group">
-                        <RevealButton revealed={showPassword} onToggle={() => setShowPassword((v) => !v)} />
-                        <CopyButton field="pass" value={entry.password ?? ""} copied={copied} copyToClipboard={copyToClipboard} />
+                        <RevealButton revealed={showPassword} label="le mot de passe" onToggle={() => setShowPassword((v) => !v)} />
+                        <CopyButton field="pass" label="le mot de passe" value={entry.password ?? ""} copied={copied} copyToClipboard={copyToClipboard} />
                     </div>
                 </div>
                 {strengthResult && (
@@ -192,8 +199,8 @@ function NotesField({ notes, copied, copyToClipboard }: CopyableProps & { notes:
                     )}
                 </div>
                 <div className="icon-btn-group field-notes-actions">
-                    <RevealButton revealed={showNotes} onToggle={() => setShowNotes((v) => !v)} />
-                    <CopyButton field="notes" value={notes} copied={copied} copyToClipboard={copyToClipboard} />
+                    <RevealButton revealed={showNotes} label="les notes" onToggle={() => setShowNotes((v) => !v)} />
+                    <CopyButton field="notes" label="les notes" value={notes} copied={copied} copyToClipboard={copyToClipboard} />
                 </div>
             </div>
         </Field>
@@ -223,6 +230,7 @@ function UrlField({ url }: { url: string }) {
                         <button
                             className="icon-btn"
                             title="Ouvrir le site"
+                            aria-label="Ouvrir le site"
                             onClick={() => window.open(safe, "_blank", "noopener,noreferrer")}
                         >
                             <ExternalLink size={13} strokeWidth={2} />

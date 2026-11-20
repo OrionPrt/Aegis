@@ -224,7 +224,7 @@ export default function SecurityAuditPage() {
                         ) : (
                             <div className="finding-list">
                                 {leaked.map((f, i) => (
-                                    <div key={`${f.id}-${i}`} className="finding-row" onClick={() => goToEntry(f.label)}>
+                                    <button type="button" key={`${f.id}-${i}`} className="finding-row" onClick={() => goToEntry(f.label)}>
                                         <div className="finding-icon severity-danger">
                                             <Flame size={14} strokeWidth={2} />
                                         </div>
@@ -232,7 +232,7 @@ export default function SecurityAuditPage() {
                                             <div className="finding-label">{f.label}</div>
                                             <div className="finding-reason">{f.reason}</div>
                                         </div>
-                                    </div>
+                                    </button>
                                 ))}
                             </div>
                         )}
@@ -346,7 +346,7 @@ function FindingSection({
             ) : (
                 <div className="finding-list">
                     {findings.map((f, i) => (
-                        <div key={`${f.id}-${i}`} className="finding-row" onClick={() => onSelect(f.label)}>
+                        <button type="button" key={`${f.id}-${i}`} className="finding-row" onClick={() => onSelect(f.label)}>
                             <div className={`finding-icon severity-${severity}`}>
                                 <Icon size={14} strokeWidth={2} />
                             </div>
@@ -354,7 +354,7 @@ function FindingSection({
                                 <div className="finding-label">{f.label}</div>
                                 <div className="finding-reason">{f.reason}</div>
                             </div>
-                        </div>
+                        </button>
                     ))}
                 </div>
             )}

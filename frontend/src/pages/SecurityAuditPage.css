@@ -133,8 +133,14 @@
     display: flex;
     align-items: center;
     gap: 15px;
+    width: 100%;
     padding: 12px 24px;
+    border: none;
     border-bottom: 1px solid var(--border);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
     cursor: pointer;
     transition: background 0.15s var(--ease);
 }

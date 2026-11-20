@@ -65,7 +65,13 @@ export default function EntryLoginFields({
                         autoComplete="new-password"
                         className="password-input"
                     />
-                    <button type="button" className="icon-btn" onClick={onToggleShowPass}>
+                    <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={onToggleShowPass}
+                        aria-label={showPass ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                        aria-pressed={showPass}
+                    >
                         {showPass ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
                     </button>
                     <button
@@ -73,6 +79,7 @@ export default function EntryLoginFields({
                         className="icon-btn generate-btn"
                         onClick={onGenerate}
                         title="Générer un mot de passe fort"
+                        aria-label="Générer un mot de passe fort"
                     >
                         <RefreshCw size={14} strokeWidth={2} />
                     </button>
@@ -81,6 +88,7 @@ export default function EntryLoginFields({
                         className={`icon-btn ${showGenOptions ? "generate-options-open" : ""}`}
                         onClick={onToggleGenOptions}
                         title="Options du générateur"
+                        aria-label="Options du générateur"
                         aria-expanded={showGenOptions}
                         aria-controls="modal-generator-options"
                     >

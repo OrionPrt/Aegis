@@ -67,20 +67,22 @@ export default function CardDetail({ entry, copied, copyToClipboard }: CardDetai
                             className="icon-btn"
                             onClick={() => setRevealed((v) => !v)}
                             title={revealed ? "Masquer" : "Afficher"}
+                            aria-label={revealed ? "Masquer les données de la carte" : "Afficher les données de la carte"}
+                            aria-pressed={revealed}
                         >
                             {revealed ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
                         </button>
-                        <CopyButton field="cardNumber" value={digitsOnly(pan)} copied={copied} copyToClipboard={copyToClipboard} />
+                        <CopyButton field="cardNumber" label="le numéro de carte" value={digitsOnly(pan)} copied={copied} copyToClipboard={copyToClipboard} />
                     </div>
                 </div>
             </Field>
 
             {entry.cardCvv && (
-                <SecretField label="Cryptogramme" field="cvv" value={entry.cardCvv} revealed={revealed} copied={copied} copyToClipboard={copyToClipboard} />
+                <SecretField label="Cryptogramme" copyLabel="le cryptogramme" field="cvv" value={entry.cardCvv} revealed={revealed} copied={copied} copyToClipboard={copyToClipboard} />
             )}
 
             {entry.cardPin && (
-                <SecretField label="Code PIN" field="pin" value={entry.cardPin} revealed={revealed} copied={copied} copyToClipboard={copyToClipboard} />
+                <SecretField label="Code PIN" copyLabel="le code PIN" field="pin" value={entry.cardPin} revealed={revealed} copied={copied} copyToClipboard={copyToClipboard} />
             )}
 
             {entry.cardBank && (
@@ -100,37 +102,41 @@ export default function CardDetail({ entry, copied, copyToClipboard }: CardDetai
 
 interface CopyButtonProps {
     field: string;
+    /** Ce qui est copié, pour les lecteurs d'écran (« le cryptogramme »). */
+    label: string;
     value: string;
     copied: string | null;
     copyToClipboard: CopyToClipboard;
 }
 
-function CopyButton({ field, value, copied, copyToClipboard }: CopyButtonProps) {
+function CopyButton({ field, label, value, copied, copyToClipboard }: CopyButtonProps) {
     return (
         <button
             className={`icon-btn ${copied === field ? "copied" : ""}`}
             onClick={() => copyToClipboard(value, field)}
             title="Copier"
+            aria-label={copied === field ? `${label} copié` : `Copier ${label}`}
         >
             {copied === field ? <Check size={14} strokeWidth={2.25} /> : <Copy size={14} strokeWidth={2} />}
         </button>
     );
 }
 
-interface SecretFieldProps extends CopyButtonProps {
+interface SecretFieldProps extends Omit<CopyButtonProps, "label"> {
     label: string;
+    copyLabel: string;
     revealed: boolean;
 }
 
 /** Champ de carte masqué par des points tant que la carte n'est pas révélée (CVV, PIN). */
-function SecretField({ label, field, value, revealed, copied, copyToClipboard }: SecretFieldProps) {
+function SecretField({ label, copyLabel, field, value, revealed, copied, copyToClipboard }: SecretFieldProps) {
     return (
         <Field label={label}>
             <div className="field-value-row">
                 <span className="field-mono">
                     {revealed ? value : "•".repeat(value.length)}
                 </span>
-                <CopyButton field={field} value={value} copied={copied} copyToClipboard={copyToClipboard} />
+                <CopyButton field={field} label={copyLabel} value={value} copied={copied} copyToClipboard={copyToClipboard} />
             </div>
         </Field>
     );

@@ -23,7 +23,13 @@ export default function EntryCardFields({
     form, setForm, panDigits, brand, panInvalid, expiryStatus, showSecret, onToggleShowSecret,
 }: EntryCardFieldsProps) {
     const revealToggle = (
-        <button type="button" className="icon-btn" onClick={onToggleShowSecret}>
+        <button
+            type="button"
+            className="icon-btn"
+            onClick={onToggleShowSecret}
+            aria-label={showSecret ? "Masquer le cryptogramme et le code PIN" : "Afficher le cryptogramme et le code PIN"}
+            aria-pressed={showSecret}
+        >
             {showSecret ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
         </button>
     );

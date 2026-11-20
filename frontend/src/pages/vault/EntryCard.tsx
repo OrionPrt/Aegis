@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import { GripVertical, ShieldCheck } from "lucide-react";
 import { ENTRY_ID_ATTRIBUTE } from "../../hooks/useTouchReorder";
 import type { TouchHandleProps } from "../../hooks/useTouchReorder";
@@ -18,17 +19,37 @@ interface EntryCardProps {
     onDragEnter: () => void;
     onDragEnd: () => void;
     onDrop: () => void;
+    /** Déplacement au clavier (Alt+↑ / Alt+↓) d'une position vers le haut (-1) ou le bas (1). */
+    onMove: (direction: -1 | 1) => void;
 }
 
 export default function EntryCard({
     entry, active, onClick,
     reorderable, nativeDragEnabled, dragging, dragOver, dropAfter, handleProps,
-    onDragStart, onDragEnter, onDragEnd, onDrop,
+    onDragStart, onDragEnter, onDragEnd, onDrop, onMove,
 }: EntryCardProps) {
+    function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClick();
+        } else if (reorderable && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+            e.preventDefault();
+            onMove(e.key === "ArrowUp" ? -1 : 1);
+        }
+    }
+
     return (
         <div
             className={`entry-card ${active ? "active" : ""} ${dragging ? "dragging" : ""} ${dragOver ? "drag-over" : ""} ${dropAfter ? "drop-after" : ""}`}
             {...{ [ENTRY_ID_ATTRIBUTE]: entry.id }}
+            // Carte utilisable au clavier : Entrée/Espace l'ouvre, Alt+↑/↓ la
+            // déplace (alternative au glisser-déposer).
+            role="button"
+            tabIndex={0}
+            aria-current={active ? "true" : undefined}
+            aria-keyshortcuts={reorderable ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
+            onKeyDown={handleKeyDown}
             onClick={onClick}
             // Sur Android, un appui long lancerait le glisser natif et
             // interromprait le geste tactile en cours sur la poignée.
@@ -40,7 +61,7 @@ export default function EntryCard({
             onDrop={(e) => { e.preventDefault(); onDrop(); }}
         >
             {reorderable && (
-                <span className="entry-drag-handle" title="Glisser pour réordonner" {...handleProps}>
+                <span className="entry-drag-handle" title="Glisser pour réordonner (ou Alt+↑ / Alt+↓)" aria-hidden="true" {...handleProps}>
                     <GripVertical size={14} strokeWidth={2} />
                 </span>
             )}
