@@ -244,6 +244,14 @@ Chaque action sensible est tracée dans `AuditLog` (`lib/audit.ts` →
 `VAULT_WRITE`, `SESSION_REVOKED`, `ACCOUNT_DELETED`, `ACCOUNT_DELETE_FAILED`,
 `PASSWORD_CHANGE_ATTEMPT`.
 
+Chaque nuit, Vercel Cron appelle `GET /api/cron/purge` (`routes/cron.ts`,
+protégée par `CRON_SECRET`). Cette purge supprime :
+
+- les entrées du journal d'audit de plus d'**un an** ;
+- les inscriptions jamais confirmées de plus de 7 jours ;
+- les sessions expirées ;
+- les compteurs de tentatives inutilisés depuis plus d'un jour.
+
 `logAudit()` ne lève jamais d'exception - une erreur d'écriture du journal ne
 doit jamais faire échouer la requête utilisateur. Consultable par
 l'utilisateur lui-même via `GET /api/sessions/audit` (voir

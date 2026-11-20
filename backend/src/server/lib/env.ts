@@ -28,6 +28,9 @@ export function checkEnvironment(env: NodeJS.ProcessEnv = process.env): string[]
     }
 
     const warnings: string[] = [];
+    if (env.NODE_ENV === "production" && !env.CRON_SECRET) {
+        warnings.push("CRON_SECRET n'est pas défini : la purge planifiée des données expirées (/api/cron/purge) refusera de tourner.");
+    }
     if (env.JWT_SECRET.length < MIN_JWT_SECRET_LENGTH) {
         warnings.push(`JWT_SECRET fait moins de ${MIN_JWT_SECRET_LENGTH} caractères : utilisez un secret aléatoire plus long.`);
     }

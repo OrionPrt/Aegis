@@ -18,6 +18,7 @@ import { createRateLimiters, registerRateLimiting } from "./lib/rate-limit.js";
 import { authRoutes } from "./routes/auth.js";
 import { vaultRoutes } from "./routes/vault.js";
 import { sessionRoutes } from "./routes/sessions.js";
+import { cronRoutes } from "./routes/cron.js";
 import { checkEnvironment } from "./lib/env.js";
 import { serializeRequest } from "./lib/logging.js";
 
@@ -94,6 +95,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await app.register(authRoutes,  { prefix: "/api/auth" });
     await app.register(vaultRoutes, { prefix: "/api/vault" });
     await app.register(sessionRoutes, { prefix: "/api/sessions" });
+    await app.register(cronRoutes,    { prefix: "/api/cron" });
 
     return app;
 }
