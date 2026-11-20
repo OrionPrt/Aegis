@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { KeyRound, LogOut, RefreshCw, Search, Shield, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
-import { CATEGORY_ICONS, CATEGORY_LABELS } from "./format";
+import { CATEGORY_ICONS, CATEGORY_LABELS, MOBILE_CATEGORY_LABELS } from "./format";
 import type { Category, VaultView } from "./types";
 
 const SIDEBAR_CATEGORIES = ["all", "login", "card", "note"] as const;
@@ -56,7 +56,15 @@ export default function VaultSidebar({
                             onClick={() => onCategoryChange(cat)}
                         >
                             <span className="nav-icon"><CatIcon size={15} strokeWidth={2} /></span>
-                            <span className="nav-label">{CATEGORY_LABELS[cat]}</span>
+                            <span className="nav-label">
+                                {MOBILE_CATEGORY_LABELS[cat] ? (
+                                    // Un seul des deux est affiché (CSS) : c'est lui qui nomme le bouton.
+                                    <>
+                                        <span className="nav-label-full">{CATEGORY_LABELS[cat]}</span>
+                                        <span className="nav-label-mobile">{MOBILE_CATEGORY_LABELS[cat]}</span>
+                                    </>
+                                ) : CATEGORY_LABELS[cat]}
+                            </span>
                             <span className="nav-count">{counts[cat]}</span>
                         </button>
                     );

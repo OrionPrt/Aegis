@@ -17,6 +17,14 @@ export const CATEGORY_LABELS: Record<Category, string> = {
     note:  "Notes",
 };
 
+/**
+ * Libellés de la barre d'onglets mobile, où cinq onglets se partagent la
+ * largeur : un libellé trop long y passerait sur deux lignes.
+ */
+export const MOBILE_CATEGORY_LABELS: Partial<Record<Category, string>> = {
+    all: "Tous",
+};
+
 export function getInitial(entry: VaultEntryExtended): string {
     return entry.label.trim().charAt(0).toUpperCase() || "?";
 }
