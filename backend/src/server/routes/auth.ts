@@ -11,6 +11,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { MAX_VAULT_CIPHERTEXT_LENGTH, VAULT_BODY_LIMIT } from "../lib/limits.js";
 import { prisma } from "../lib/prisma.js";
+import { VAULT_CONFLICT_MESSAGE, VaultVersionSchema } from "../lib/vault-version.js";
 import {
     createSession,
     validateRefreshToken,
@@ -88,6 +89,9 @@ const ChangePasswordSchema = z.object({
             .length(16)
             .regex(/^[A-Za-z0-9+/=]+$/, "iv must be base64"),
     }),
+    // Version du coffre rechiffré : refusée (409) si un autre appareil a
+    // sauvegardé depuis, pour ne pas écraser ses changements.
+    baseVersion: VaultVersionSchema,
 });
 
 function cookieOpts(maxAge?: number): CookieOptions {
@@ -253,7 +257,7 @@ export async function authRoutes(app: FastifyInstance) {
                 return reply.status(400).send({ message: "Données invalides." });
             }
 
-            const { currentAuthKeyHex, newAuthKeyHex, vault } = parsed.data;
+            const { currentAuthKeyHex, newAuthKeyHex, vault, baseVersion } = parsed.data;
 
             const user = await prisma.user.findUnique({ where: { id: userId } });
             if (!user) {
@@ -271,16 +275,20 @@ export async function authRoutes(app: FastifyInstance) {
 
             const newAuthKeyHash = await bcrypt.hash(newAuthKeyHex, BCRYPT_ROUNDS);
 
-            await prisma.user.update({
-                where: { id: userId },
+            const { count } = await prisma.user.updateMany({
+                where: { id: userId, vaultVersion: baseVersion },
                 data: {
                     authKeyHash:    newAuthKeyHash,
                     vaultData:      vault.ciphertext,
                     vaultIv:        vault.iv,
+                    vaultVersion:   { increment: 1 },
                     failedAttempts: 0,
                     lockedUntil:    null,
                 },
             });
+            if (count === 0) {
+                return reply.status(409).send({ message: VAULT_CONFLICT_MESSAGE });
+            }
 
             await revokeAllSessions(userId);
             await logAudit(userId, "PASSWORD_CHANGE_ATTEMPT", req, { success: true });

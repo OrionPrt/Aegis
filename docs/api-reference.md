@@ -55,12 +55,15 @@ même navigateur - voir [security-model.md](./security-model.md)).
 {
   "currentAuthKeyHex": "<64 hex>",
   "newAuthKeyHex": "<64 hex>",
-  "vault": { "ciphertext": "<base64>", "iv": "<16 chars base64>" }
+  "vault": { "ciphertext": "<base64>", "iv": "<16 chars base64>" },
+  "baseVersion": 3
 }
 
 // Réponse 200
 { "message": "Mot de passe maître changé. Reconnectez-vous." }
 ```
+`409` si le coffre a été modifié depuis `baseVersion` (version renvoyée par
+`GET /api/vault`) : rien n'est changé, le client doit recharger le coffre.
 Remplace `authKeyHash` + le vault en une opération atomique, révoque **toutes**
 les sessions, efface le cookie. `401` si `currentAuthKeyHex` incorrect (compte
 comme tentative échouée), `429` si verrouillé.
@@ -88,15 +91,19 @@ la forme du payload, jamais le contenu (opaque et chiffré).
 
 ```json
 // Vault existant
-{ "vault": { "ciphertext": "<base64>", "iv": "<base64>" }, "updatedAt": 1234567890000 }
+{ "vault": { "ciphertext": "<base64>", "iv": "<base64>" }, "version": 3, "updatedAt": 1234567890000 }
 
 // Premier accès après inscription (aucun vault sauvegardé)
-{ "vault": null }
+{ "vault": null, "version": 0 }
 ```
 
 ### `PUT /api/vault` 🔒
 
-Remplace intégralement le vault chiffré.
+Remplace intégralement le vault chiffré, à condition qu'il soit encore à la
+version `baseVersion` dont part le client (champ requis, entier ≥ 0). Sinon
+`409` avec la version actuelle (`{ "message", "version" }`) : un autre appareil
+a sauvegardé entre-temps, ses changements ne sont pas écrasés. La réponse `200`
+renvoie la nouvelle `version`.
 
 ```json
 // Requête

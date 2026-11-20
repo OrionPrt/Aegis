@@ -58,7 +58,7 @@ describe("/api/vault", () => {
         await registerAndLogin(email, authKeyHex);
         const token = await accessToken(email, authKeyHex);
 
-        const payload = { ciphertext: Buffer.from("fake-encrypted-vault-content").toString("base64"), iv: Buffer.from("123456789012").toString("base64") };
+        const payload = { ciphertext: Buffer.from("fake-encrypted-vault-content").toString("base64"), iv: Buffer.from("123456789012").toString("base64"), baseVersion: 0 };
 
         const putRes = await app.inject({
             method: "PUT",
@@ -70,6 +70,73 @@ describe("/api/vault", () => {
 
         const getRes = await app.inject({ method: "GET", url: "/api/vault", headers: { authorization: `Bearer ${token}` } });
         expect(getRes.json().vault).toEqual({ ciphertext: payload.ciphertext, iv: payload.iv });
+    });
+
+    describe("version control (concurrent devices)", () => {
+        const iv = Buffer.from("123456789012").toString("base64");
+
+        async function put(token: string, ciphertext: string, baseVersion: number) {
+            return app.inject({
+                method: "PUT",
+                url: "/api/vault",
+                headers: { authorization: `Bearer ${token}` },
+                payload: { ciphertext, iv, baseVersion },
+            });
+        }
+
+        it("reports version 0 before any save, then increments it on each save", async () => {
+            const email = uniqueEmail("vault-version");
+            emails.push(email);
+            const authKeyHex = fakeAuthKeyHex("vault-version");
+            await registerAndLogin(email, authKeyHex);
+            const token = await accessToken(email, authKeyHex);
+
+            const empty = await app.inject({ method: "GET", url: "/api/vault", headers: { authorization: `Bearer ${token}` } });
+            expect(empty.json().version).toBe(0);
+
+            const first = await put(token, "QUFBQQ==", 0);
+            expect(first.statusCode).toBe(200);
+            expect(first.json().version).toBe(1);
+
+            const second = await put(token, "QkJCQg==", 1);
+            expect(second.json().version).toBe(2);
+
+            const get = await app.inject({ method: "GET", url: "/api/vault", headers: { authorization: `Bearer ${token}` } });
+            expect(get.json().version).toBe(2);
+        });
+
+        it("rejects a save based on an outdated version with 409 and keeps the newer vault", async () => {
+            const email = uniqueEmail("vault-conflict");
+            emails.push(email);
+            const authKeyHex = fakeAuthKeyHex("vault-conflict");
+            await registerAndLogin(email, authKeyHex);
+            const token = await accessToken(email, authKeyHex);
+
+            // Deux appareils partent de la version 0 ; le premier sauvegarde.
+            expect((await put(token, "RGV2aWNlQg==", 0)).statusCode).toBe(200);
+            const stale = await put(token, "RGV2aWNlQQ==", 0);
+
+            expect(stale.statusCode).toBe(409);
+            expect(stale.json().version).toBe(1);
+            const get = await app.inject({ method: "GET", url: "/api/vault", headers: { authorization: `Bearer ${token}` } });
+            expect(get.json().vault.ciphertext).toBe("RGV2aWNlQg==");
+        });
+
+        it("rejects a save without baseVersion with 400", async () => {
+            const email = uniqueEmail("vault-noversion");
+            emails.push(email);
+            const authKeyHex = fakeAuthKeyHex("vault-noversion");
+            await registerAndLogin(email, authKeyHex);
+            const token = await accessToken(email, authKeyHex);
+
+            const res = await app.inject({
+                method: "PUT",
+                url: "/api/vault",
+                headers: { authorization: `Bearer ${token}` },
+                payload: { ciphertext: "QUFBQQ==", iv },
+            });
+            expect(res.statusCode).toBe(400);
+        });
     });
 
     it("rejects a malformed vault payload with 400", async () => {

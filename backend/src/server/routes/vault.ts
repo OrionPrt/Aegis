@@ -12,6 +12,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import bcrypt from "bcryptjs";
+import { VAULT_CONFLICT_MESSAGE, VaultVersionSchema } from "../lib/vault-version.js";
 import { z } from "zod";
 import { MAX_VAULT_CIPHERTEXT_LENGTH, VAULT_BODY_LIMIT } from "../lib/limits.js";
 import { prisma } from "../lib/prisma.js";
@@ -44,6 +45,9 @@ const VaultPayloadSchema = z.object({
         .string()
         .length(16)
         .regex(/^[A-Za-z0-9+/=]+$/, "iv must be base64"),
+
+    // Version du coffre dont part le client (renvoyée par GET /api/vault)
+    baseVersion: VaultVersionSchema,
 });
 
 const DeleteAccountSchema = z.object({
@@ -67,7 +71,7 @@ export async function vaultRoutes(app: FastifyInstance) {
 
             const user = await prisma.user.findUnique({
                 where:  { id: userId },
-                select: { vaultData: true, vaultIv: true, updatedAt: true },
+                select: { vaultData: true, vaultIv: true, vaultVersion: true, updatedAt: true },
             });
 
             if (!user) {
@@ -76,7 +80,7 @@ export async function vaultRoutes(app: FastifyInstance) {
 
             // Vault vide - premier accès après inscription
             if (!user.vaultData || !user.vaultIv) {
-                return reply.status(200).send({ vault: null });
+                return reply.status(200).send({ vault: null, version: user.vaultVersion });
             }
 
             return reply.send({
@@ -84,6 +88,7 @@ export async function vaultRoutes(app: FastifyInstance) {
                     ciphertext: user.vaultData,
                     iv:         user.vaultIv,
                 },
+                version:   user.vaultVersion,
                 updatedAt: user.updatedAt.getTime(),
             });
         }
@@ -107,28 +112,31 @@ export async function vaultRoutes(app: FastifyInstance) {
                 });
             }
 
-            const { ciphertext, iv } = parsed.data;
+            const { ciphertext, iv, baseVersion } = parsed.data;
 
-            // Vérification que l'utilisateur existe toujours
-            const user = await prisma.user.findUnique({
-                where:  { id: userId },
-                select: { id: true },
-            });
-
-            if (!user) {
-                return reply.status(404).send({ message: "Utilisateur introuvable." });
-            }
-
-            await prisma.user.update({
-                where: { id: userId },
+            // Écriture conditionnelle atomique : elle ne passe que si personne
+            // n'a sauvegardé depuis la version dont part le client.
+            const { count } = await prisma.user.updateMany({
+                where: { id: userId, vaultVersion: baseVersion },
                 data:  {
-                    vaultData: ciphertext,
-                    vaultIv:   iv,
-                    updatedAt: new Date(),
+                    vaultData:    ciphertext,
+                    vaultIv:      iv,
+                    vaultVersion: { increment: 1 },
                 },
             });
 
-            return reply.status(200).send({ message: "Vault sauvegardé." });
+            if (count === 0) {
+                const current = await prisma.user.findUnique({
+                    where:  { id: userId },
+                    select: { vaultVersion: true },
+                });
+                if (!current) {
+                    return reply.status(404).send({ message: "Utilisateur introuvable." });
+                }
+                return reply.status(409).send({ message: VAULT_CONFLICT_MESSAGE, version: current.vaultVersion });
+            }
+
+            return reply.status(200).send({ message: "Vault sauvegardé.", version: baseVersion + 1 });
         }
     );
 
