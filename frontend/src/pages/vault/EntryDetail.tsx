@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, Eye, EyeOff, Pencil, Shield, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, Eye, EyeOff, Folder, FolderInput, Pencil, Shield, Trash2 } from "lucide-react";
 import { evaluatePasswordStrength } from "../../lib/crypto";
 import { safeHttpUrl } from "../../lib/url";
 import CardDetail from "./CardDetail";
@@ -12,13 +12,16 @@ import { useCopyFeedback } from "./useCopyFeedback";
 
 interface EntryDetailProps {
     entry: VaultEntryExtended;
+    /** Nom du dossier de l'entrée, absent si elle n'en a pas. */
+    folderName?: string;
     saving: boolean;
     onBack: () => void;
     onEdit: () => void;
+    onMove: () => void;
     onDelete: () => void;
 }
 
-export default function EntryDetail({ entry, saving, onBack, onEdit, onDelete }: EntryDetailProps) {
+export default function EntryDetail({ entry, folderName, saving, onBack, onEdit, onMove, onDelete }: EntryDetailProps) {
     // Presse-papiers effacé automatiquement 30 s après la dernière copie (lib/clipboard.ts).
     const { copied, copyError, copy: copyToClipboard } = useCopyFeedback();
 
@@ -53,6 +56,14 @@ export default function EntryDetail({ entry, saving, onBack, onEdit, onDelete }:
                     <NotesField notes={entry.notes} copied={copied} copyToClipboard={copyToClipboard} />
                 )}
 
+                {folderName && (
+                    <Field label="Dossier">
+                        <span className="detail-folder">
+                            <Folder size={13} strokeWidth={2} aria-hidden="true" /> {folderName}
+                        </span>
+                    </Field>
+                )}
+
                 {entry.tags && entry.tags.length > 0 && (
                     <Field label="Tags">
                         <div className="tag-list">
@@ -72,6 +83,9 @@ export default function EntryDetail({ entry, saving, onBack, onEdit, onDelete }:
             <div className="detail-footer">
                 <button className="btn-edit" onClick={onEdit} disabled={saving}>
                     <Pencil size={13} strokeWidth={2} /> Modifier
+                </button>
+                <button className="btn-move" onClick={onMove} title="Déplacer vers…" aria-label="Déplacer vers un dossier" disabled={saving}>
+                    <FolderInput size={14} strokeWidth={2} />
                 </button>
                 <button className="btn-delete" onClick={onDelete} title="Supprimer" aria-label="Supprimer l'entrée" disabled={saving}>
                     <Trash2 size={14} strokeWidth={2} />

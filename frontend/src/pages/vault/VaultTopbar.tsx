@@ -1,9 +1,15 @@
-import { AlertTriangle, LogOut, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck } from "lucide-react";
-import { CATEGORY_LABELS } from "./format";
-import type { Category } from "./types";
+import { AlertTriangle, LogOut, Pencil, Plus, RefreshCw, Search, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
+
+/** Actions proposées quand la liste affiche un dossier. */
+export interface FolderActions {
+    onRename: () => void;
+    onDelete: () => void;
+}
 
 interface VaultTopbarProps {
-    category: Category;
+    title: string;
+    /** Présent quand un dossier est affiché. */
+    folderActions?: FolderActions;
     saving: boolean;
     /** Dernière erreur de sauvegarde, affichée sous la barre. */
     errorMessage: string | null;
@@ -18,13 +24,37 @@ interface VaultTopbarProps {
 
 /** Barre du haut de la liste : titre, état de sauvegarde, actions et recherche mobile. */
 export default function VaultTopbar({
-    category, saving, errorMessage, search, onSearchChange,
+    title, folderActions, saving, errorMessage, search, onSearchChange,
     onAdd, onOpenGenerator, onOpenSecurityAudit, onOpenSessions, onLogout,
 }: VaultTopbarProps) {
     return (
         <>
             <div className="main-topbar">
-                <h1 className="topbar-title">{CATEGORY_LABELS[category]}</h1>
+                <div className="topbar-heading">
+                    <h1 className="topbar-title" title={title}>{title}</h1>
+                    {folderActions && (
+                        <div className="icon-btn-group">
+                            <button
+                                className="icon-btn"
+                                title="Renommer le dossier"
+                                aria-label="Renommer le dossier"
+                                onClick={folderActions.onRename}
+                                disabled={saving}
+                            >
+                                <Pencil size={14} strokeWidth={2} />
+                            </button>
+                            <button
+                                className="icon-btn icon-btn-danger"
+                                title="Supprimer le dossier"
+                                aria-label="Supprimer le dossier"
+                                onClick={folderActions.onDelete}
+                                disabled={saving}
+                            >
+                                <Trash2 size={14} strokeWidth={2} />
+                            </button>
+                        </div>
+                    )}
+                </div>
                 <div className="topbar-actions">
                     {saving && <span className="saving-indicator">Sauvegarde…</span>}
                     {errorMessage && !saving && (

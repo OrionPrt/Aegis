@@ -1,6 +1,7 @@
 import { LayoutGrid, KeyRound, CreditCard, StickyNote } from "lucide-react";
 import { formatExpiry, last4 } from "../../lib/card";
-import type { Category, VaultEntryExtended } from "./types";
+import type { VaultFolder } from "../../lib/vault-format";
+import type { Category, VaultEntryExtended, VaultView } from "./types";
 
 export const CATEGORY_ICONS: Record<Category, typeof LayoutGrid> = {
     all:   LayoutGrid,
@@ -43,15 +44,29 @@ export function formatDate(ts: number, short = false): string {
     return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
-/** Filtre les entrées par catégorie et par recherche (nom, identifiant, URL, tags, carte). */
+/** Titre de la liste pour une vue (résolue : son dossier existe). */
+export function viewTitle(view: VaultView, folders: readonly VaultFolder[]): string {
+    if (view.kind === "category") return CATEGORY_LABELS[view.category];
+    return folders.find((f) => f.id === view.folderId)?.name ?? CATEGORY_LABELS.all;
+}
+
+function matchesView(entry: VaultEntryExtended, view: VaultView): boolean {
+    if (view.kind === "folder") return entry.folderId === view.folderId;
+    return view.category === "all" || entry.category === view.category;
+}
+
+/**
+ * Filtre les entrées par vue (catégorie ou dossier) et par recherche (nom,
+ * identifiant, URL, tags, carte) : dans un dossier, on ne cherche que dans lui.
+ */
 export function filterEntries(
     entries: VaultEntryExtended[],
-    category: Category,
+    view: VaultView,
     search: string,
 ): VaultEntryExtended[] {
     const q = search.toLowerCase();
     return entries.filter((e) => {
-        const matchCat = category === "all" || e.category === category;
+        const matchView = matchesView(e, view);
         const matchSearch =
             !q ||
             e.label.toLowerCase().includes(q) ||
@@ -61,7 +76,7 @@ export function filterEntries(
             e.cardholder?.toLowerCase().includes(q) ||
             e.cardBank?.toLowerCase().includes(q) ||
             last4(e.cardNumber ?? "").includes(q);
-        return matchCat && matchSearch;
+        return matchView && matchSearch;
     });
 }
 

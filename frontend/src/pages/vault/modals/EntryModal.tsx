@@ -5,6 +5,7 @@ import Modal from "../../../components/Modal";
 import { checkExpiry, detectBrand, digitsOnly, luhn } from "../../../lib/card";
 import { DEFAULT_GENERATOR_SETTINGS, generatePassword } from "../../../lib/crypto";
 import type { GeneratorSettings } from "../../../lib/crypto";
+import type { VaultFolder } from "../../../lib/vault-format";
 import { CATEGORY_ICONS, CATEGORY_LABELS } from "../format";
 import type { EntryCategory, EntryFormData, VaultEntryExtended } from "../types";
 import EntryCardFields from "./EntryCardFields";
@@ -18,13 +19,17 @@ const PAN_CHECK_MIN_LENGTH = 12;
 interface EntryModalProps {
     entry: VaultEntryExtended | null;
     defaultCategory: EntryCategory;
+    /** Dossiers proposés, dans l'ordre d'affichage. */
+    folders: VaultFolder[];
+    /** Dossier d'une nouvelle entrée : celui affiché, s'il y en a un. */
+    defaultFolderId?: string;
     onClose: () => void;
     onSave: (data: EntryFormData) => Promise<void>;
 }
 
 /** Modal d'ajout (entry = null) ou d'édition d'une entrée du coffre. */
-export default function EntryModal({ entry, defaultCategory, onClose, onSave }: EntryModalProps) {
-    const [form, setForm] = useState<EntryFormData>(() => initialFormData(entry, defaultCategory));
+export default function EntryModal({ entry, defaultCategory, folders, defaultFolderId, onClose, onSave }: EntryModalProps) {
+    const [form, setForm] = useState<EntryFormData>(() => initialFormData(entry, defaultCategory, defaultFolderId));
     const [showPass,   setShowPass]   = useState(false);
     const [showSecret, setShowSecret] = useState(false); // CVV + PIN, œil partagé
     const [saving,     setSaving]     = useState(false);
@@ -154,6 +159,20 @@ export default function EntryModal({ entry, defaultCategory, onClose, onSave }: 
                         onChange={(e) => setTagsInput(e.target.value)}
                         placeholder="dev, perso, pro (séparés par des virgules)"
                     />
+                </div>
+
+                <div className="form-row">
+                    <label htmlFor="modal-folder">Dossier</label>
+                    <select
+                        id="modal-folder"
+                        value={form.folderId ?? ""}
+                        onChange={(e) => setForm((f) => ({ ...f, folderId: e.target.value || undefined }))}
+                    >
+                        <option value="">Aucun dossier</option>
+                        {folders.map((folder) => (
+                            <option key={folder.id} value={folder.id}>{folder.name}</option>
+                        ))}
+                    </select>
                 </div>
 
                 {formError && (

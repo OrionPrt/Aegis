@@ -8,7 +8,15 @@ import { isValidTotpSecret, normalizeSecretInput } from "../../../lib/totp";
 import { normalizeEntryUrl } from "../../../lib/url";
 import type { EntryCategory, EntryFormData, VaultEntryExtended } from "../types";
 
-export function initialFormData(entry: VaultEntryExtended | null, defaultCategory: EntryCategory): EntryFormData {
+/**
+ * Valeurs de départ du formulaire. Une nouvelle entrée va dans le dossier
+ * affiché (`defaultFolderId`) ; une entrée modifiée garde le sien.
+ */
+export function initialFormData(
+    entry: VaultEntryExtended | null,
+    defaultCategory: EntryCategory,
+    defaultFolderId?: string,
+): EntryFormData {
     return {
         label:      entry?.label      ?? "",
         username:   entry?.username   ?? "",
@@ -25,6 +33,7 @@ export function initialFormData(entry: VaultEntryExtended | null, defaultCategor
         cardPin:    entry?.cardPin    ?? "",
         cardBank:   entry?.cardBank   ?? "",
         cardType:   entry?.cardType   ?? "credit",
+        folderId:   entry ? entry.folderId : defaultFolderId,
     };
 }
 

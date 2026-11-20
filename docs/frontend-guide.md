@@ -27,7 +27,7 @@ faite par le backend sur chaque endpoint (`requireAuth`).
   lien de consentement légal (mode inscription) et le pied de page vers les
   pages légales.
 - **`VaultPage`** - cœur de l'application : liste des entrées, recherche,
-  filtre par catégorie, détail d'une entrée, réordonnancement (drag-and-drop
+  filtre par catégorie ou par dossier, détail d'une entrée, réordonnancement (drag-and-drop
   HTML5 à la souris, poignée tactile via `useTouchReorder` sur mobile),
   modale d'ajout/édition (`EntryModal`), générateur de mot de passe
   (`PasswordGeneratorModal`), changement de mot de passe maître
@@ -59,6 +59,28 @@ dans le même coffre chiffré en bloc (voir « Format du coffre » plus bas) :
 - **`note`** - texte libre, masqué par défaut comme un mot de passe (bouton
   révéler/copier), dans une zone bornée et défilante pour ne jamais faire
   bouger les boutons d'action.
+
+## Dossiers
+
+Un seul niveau, une entrée dans un dossier au plus. Logique pure (validation du
+nom, création, renommage, suppression, rangement, tri, vue) dans
+`pages/vault/folders.ts` ; `VaultPage` ne fait qu'appeler ces fonctions puis
+`saveVault`.
+
+- **Barre latérale** (`SidebarFolders`) : section « Dossiers » sous les
+  catégories, triée par ordre alphabétique, avec compteurs et bouton « + ».
+  Ouvrir un dossier affiche toutes ses entrées, quel que soit leur type ; la
+  recherche s'applique alors dans le dossier. Un dossier affiché qui disparaît
+  (supprimé ici ou ailleurs) ramène à « Tous les identifiants ».
+- **Barre du haut** : en vue dossier, boutons Renommer / Supprimer. Supprimer
+  un dossier ne supprime aucune entrée : elles repassent sans dossier.
+- **Ranger une entrée** : champ « Dossier » du formulaire (présélectionné sur
+  le dossier affiché), bouton « Déplacer vers… » du panneau de détail, ou
+  glisser-déposer d'une carte sur un dossier de la barre latérale (souris :
+  la carte porte le type `application/x-aegis-entry`, que seuls les dossiers
+  acceptent).
+- **Mobile** : la barre du bas n'a qu'un onglet « Dossiers », qui ouvre la
+  liste (`FolderPickerModal`) ; le rangement passe par « Déplacer vers… ».
 
 ## Format du coffre
 

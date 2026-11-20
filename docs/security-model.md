@@ -6,6 +6,11 @@ Tout le chiffrement/déchiffrement se fait côté client (`frontend/src/lib/cryp
 Le serveur ne reçoit jamais le mot de passe maître, ni en clair ni sous une
 forme qui permettrait de le retrouver.
 
+Le coffre est chiffré **en un seul bloc** : entrées et dossiers (noms, rangement
+de chaque entrée) font partie du même texte chiffré (`lib/vault-format.ts`).
+Le serveur ne connaît ni le nombre de dossiers, ni leurs noms, ni ce qu'ils
+contiennent - seulement la taille du blob.
+
 ### Dérivation de clés (Argon2id)
 
 À l'inscription et à la connexion, le client dérive **deux clés distinctes** à

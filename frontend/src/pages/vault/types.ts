@@ -7,6 +7,11 @@ export type Category = "all" | "login" | "card" | "note";
 /** Catégorie d'une entrée (« all » n'est qu'un filtre d'affichage). */
 export type EntryCategory = Exclude<Category, "all">;
 
+/** Ce qu'affiche la liste : une catégorie, ou tout le contenu d'un dossier. */
+export type VaultView =
+    | { kind: "category"; category: Category }
+    | { kind: "folder"; folderId: string };
+
 export interface VaultEntryExtended extends VaultEntry {
     category: Category;
     url?:     string;
