@@ -11,6 +11,7 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "./auth.js";
 import {
@@ -109,9 +110,11 @@ export async function sessionRoutes(app: FastifyInstance) {
         async (req: FastifyRequest, reply: FastifyReply) => {
             const { sub: userId } = req.user as JwtPayload;
 
-            const query  = req.query as Record<string, string>;
-            const limit  = Math.min(parseInt(query.limit  ?? "50"), 100);
-            const offset = parseInt(query.offset ?? "0");
+            const parsed = AuditQuerySchema.safeParse(req.query);
+            if (!parsed.success) {
+                return reply.status(400).send({ message: "Paramètres de pagination invalides." });
+            }
+            const { limit, offset } = parsed.data;
 
             const [logs, total] = await Promise.all([
                 prisma.auditLog.findMany({
@@ -135,3 +138,19 @@ export async function sessionRoutes(app: FastifyInstance) {
         }
     );
 }
+
+// ─────────────────────────────────────────────────────────
+// SCHÉMAS
+// ─────────────────────────────────────────────────────────
+
+const MAX_AUDIT_PAGE_SIZE     = 100;
+const DEFAULT_AUDIT_PAGE_SIZE = 50;
+
+// Pagination de GET /audit. Au-delà de 100, la limite est plafonnée plutôt
+// que refusée. Déclaré en fin de fichier : lu à l'exécution des requêtes,
+// bien après le chargement du module.
+const AuditQuerySchema = z.object({
+    limit:  z.coerce.number().int().min(1).default(DEFAULT_AUDIT_PAGE_SIZE)
+        .transform((n) => Math.min(n, MAX_AUDIT_PAGE_SIZE)),
+    offset: z.coerce.number().int().min(0).default(0),
+});

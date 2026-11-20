@@ -18,9 +18,17 @@ import { createRateLimiters, registerRateLimiting } from "./lib/rate-limit.js";
 import { authRoutes } from "./routes/auth.js";
 import { vaultRoutes } from "./routes/vault.js";
 import { sessionRoutes } from "./routes/sessions.js";
+import { checkEnvironment } from "./lib/env.js";
+import { serializeRequest } from "./lib/logging.js";
 
 export async function buildApp(): Promise<FastifyInstance> {
-    const app = Fastify({ logger: true, trustProxy: true });
+    const envWarnings = checkEnvironment();
+
+    const app = Fastify({
+        logger:     { serializers: { req: serializeRequest } },
+        trustProxy: true,
+    });
+    for (const warning of envWarnings) app.log.warn(warning);
 
     // ─── Sécurité HTTP ────────────────────────────────────────
     await app.register(fastifyHelmet, {
@@ -36,6 +44,13 @@ export async function buildApp(): Promise<FastifyInstance> {
                 upgradeInsecureRequests: [],
             },
         },
+    });
+
+    // ─── Pas de cache ─────────────────────────────────────────
+    // Les réponses de l'API (coffre chiffré, jetons, sels) ne doivent être
+    // gardées ni par le navigateur ni par un proxy intermédiaire.
+    app.addHook("onSend", async (_req, reply) => {
+        reply.header("Cache-Control", "no-store");
     });
 
     // ─── Cookies ──────────────────────────────────────────────
