@@ -11,7 +11,9 @@
  *  1. Génère un sel aléatoire côté client
  *  2. Dérive masterKey + authKey via Argon2id
  *  3. Envoie { email, authKey, salt } au serveur
- *  4. Le serveur stocke bcrypt(authKey) — jamais le master password
+ *  4. Le serveur stocke bcrypt(authKey) — jamais le master password —
+ *     et envoie un lien de confirmation ; la connexion n'est possible
+ *     qu'une fois l'adresse confirmée
  *
  *  LOGIN
  *  ─────────────────────────────────────────────────────
@@ -108,14 +110,14 @@ export function clearSession(): void {
  *  1. Génère un sel fort côté client
  *  2. Dérive masterKey + authKey (Argon2id)
  *  3. Envoie email + authKey + sel au serveur
- *  4. Conserve la session en mémoire
+ *  4. N'ouvre aucune session : le serveur envoie un lien de confirmation
  *
- * @returns AuthSession prête à l'emploi si succès
+ * @returns Le message à afficher (identique que l'adresse soit libre ou non)
  */
 export async function register(
     email: string,
     masterPassword: string
-): Promise<AuthSession> {
+): Promise<string> {
     // 1. Sel généré côté client (32 bytes, base64)
     const saltBase64 = generateSalt();
 
@@ -130,22 +132,33 @@ export async function register(
         kdfVersion: CURRENT_KDF_VERSION,
     };
 
+    // 4. Aucune session : le compte s'active par le lien envoyé par email,
+    //    puis par une connexion normale. La réponse est la même que
+    //    l'adresse soit libre ou non.
     const response = await apiFetch("/auth/register", {
         method: "POST",
         body: JSON.stringify(payload),
-    });
+    }) as { message: string };
 
-    const { accessToken, expiresAt } = response as AuthTokens & { expiresAt: number };
+    return response.message;
+}
 
-    // 4. Session en mémoire uniquement
-    const session: AuthSession = {
-        tokens: { accessToken, expiresAt },
-        keys,
-        email: email.toLowerCase().trim(),
-    };
-    setSession(session);
+/** Confirme l'adresse avec le jeton du lien reçu par email. */
+export async function verifyEmail(token: string): Promise<string> {
+    const response = await apiFetch("/auth/verify-email", {
+        method: "POST",
+        body: JSON.stringify({ token }),
+    }) as { message: string };
+    return response.message;
+}
 
-    return session;
+/** Redemande un lien de confirmation (réponse identique dans tous les cas). */
+export async function resendVerification(email: string): Promise<string> {
+    const response = await apiFetch("/auth/resend-verification", {
+        method: "POST",
+        body: JSON.stringify({ email: email.toLowerCase().trim() }),
+    }) as { message: string };
+    return response.message;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -488,7 +501,8 @@ async function handleResponse(response: Response): Promise<unknown> {
     if (!response.ok) {
         throw new AuthError(
             body.message ?? "Une erreur est survenue.",
-            response.status
+            response.status,
+            typeof body.code === "string" ? body.code : undefined
         );
     }
 
@@ -501,9 +515,12 @@ async function handleResponse(response: Response): Promise<unknown> {
 
 export class AuthError extends Error {
     readonly status: number;
-    constructor(message: string, status: number) {
+    /** Code machine renvoyé par le serveur (ex. "EMAIL_NOT_VERIFIED"). */
+    readonly code?: string;
+    constructor(message: string, status: number, code?: string) {
         super(message);
         this.name = "AuthError";
         this.status = status;
+        this.code = code;
     }
 }

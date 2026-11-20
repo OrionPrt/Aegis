@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
     register, login, logout, clearSession, getSession, isAuthenticated, subscribeSession,
-    apiFetch, changeMasterPassword, deleteAccount, AuthError,
+    apiFetch, changeMasterPassword, deleteAccount, AuthError, verifyEmail, resendVerification,
 } from "./auth-client.js";
 import { CURRENT_KDF_VERSION } from "./crypto.js";
 
@@ -16,20 +16,28 @@ function jsonResponse(body: unknown, status = 200): Response {
 const FAR_FUTURE = Date.now() + 900_000; // 15 min - loin de tout seuil de refresh proactif
 const SALT = btoa("x".repeat(32));
 
+/** Ouvre une session comme après une connexion réussie (l'inscription n'en ouvre plus). */
+async function openSession(email = "user@example.com", accessToken = "tok") {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => url.includes("/auth/salt")
+        ? jsonResponse({ saltBase64: SALT, kdfVersion: CURRENT_KDF_VERSION })
+        : jsonResponse({ accessToken, expiresAt: FAR_FUTURE })));
+    return login(email, "MasterPassw0rd!");
+}
+
 describe("register / login / session state", () => {
     afterEach(() => {
         clearSession();
         vi.unstubAllGlobals();
     });
 
-    it("register() stores an in-memory session", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok-1", expiresAt: FAR_FUTURE }, 201)));
+    it("register() opens no session: the address must be confirmed first", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ message: "Email envoyé." }, 202)));
 
-        const session = await register("user@example.com", "MasterPassw0rd!");
+        const message = await register("user@example.com", "MasterPassw0rd!");
 
-        expect(session.tokens.accessToken).toBe("tok-1");
-        expect(getSession()).toBe(session);
-        expect(isAuthenticated()).toBe(true);
+        expect(message).toBe("Email envoyé.");
+        expect(getSession()).toBeNull();
+        expect(isAuthenticated()).toBe(false);
     });
 
     it("login() fetches the salt first, then verifies via authKeyHex derived from it", async () => {
@@ -46,7 +54,7 @@ describe("register / login / session state", () => {
     });
 
     it("register() records the key derivation version it used", async () => {
-        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ accessToken: "t", expiresAt: FAR_FUTURE }, 201));
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ message: "Email envoyé." }, 202));
         vi.stubGlobal("fetch", fetchMock);
 
         await register("user@example.com", "MasterPassw0rd!");
@@ -64,8 +72,7 @@ describe("register / login / session state", () => {
     });
 
     it("clearSession() makes isAuthenticated() false and getSession() null", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "t", expiresAt: FAR_FUTURE }, 201)));
-        await register("user@example.com", "MasterPassw0rd!");
+        await openSession("user@example.com", "t");
 
         clearSession();
 
@@ -74,15 +81,16 @@ describe("register / login / session state", () => {
     });
 
     it("isAuthenticated() is false once the access token's expiresAt is in the past", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "t", expiresAt: Date.now() - 1000 }, 201)));
-        await register("user@example.com", "MasterPassw0rd!");
+        vi.stubGlobal("fetch", vi.fn(async (url: string) => url.includes("/auth/salt")
+            ? jsonResponse({ saltBase64: SALT })
+            : jsonResponse({ accessToken: "t", expiresAt: Date.now() - 1000 })));
+        await login("user@example.com", "MasterPassw0rd!");
 
         expect(isAuthenticated()).toBe(false);
     });
 
     it("logout() clears the session even when the network call fails", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "t", expiresAt: FAR_FUTURE }, 201)));
-        await register("user@example.com", "MasterPassw0rd!");
+        await openSession("user@example.com", "t");
 
         vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
         await expect(logout()).rejects.toThrow();
@@ -98,8 +106,7 @@ describe("apiFetch", () => {
     });
 
     it("injects the Bearer token and only sets Content-Type when a body is present", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok", expiresAt: FAR_FUTURE }, 201)));
-        await register("user@example.com", "MasterPassw0rd!");
+        await openSession("user@example.com", "tok");
 
         const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true }));
         vi.stubGlobal("fetch", fetchMock);
@@ -115,8 +122,7 @@ describe("apiFetch", () => {
     });
 
     it("retries once after a reactive 401 by refreshing the access token", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok-old", expiresAt: FAR_FUTURE }, 201)));
-        await register("user@example.com", "MasterPassw0rd!");
+        await openSession("user@example.com", "tok-old");
 
         const fetchMock = vi.fn()
             .mockResolvedValueOnce(jsonResponse({ message: "expired" }, 401))          // 1er essai /vault
@@ -132,8 +138,7 @@ describe("apiFetch", () => {
     });
 
     it("refreshes proactively when the access token is about to expire (<60s left)", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok-old", expiresAt: FAR_FUTURE }, 201)));
-        const session = await register("user@example.com", "MasterPassw0rd!");
+        const session = await openSession("user@example.com", "tok-old");
         session.tokens.expiresAt = Date.now() + 1_000; // < 60s -> refresh proactif
 
         const fetchMock = vi.fn()
@@ -152,8 +157,7 @@ describe("apiFetch", () => {
         // par le navigateur peut appartenir à un autre compte que celui en
         // mémoire de cet onglet. Le serveur renvoie alors l'email de CET
         // AUTRE compte dans /auth/refresh - le client doit le détecter.
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok-old", expiresAt: FAR_FUTURE }, 201)));
-        const session = await register("alice@example.com", "MasterPassw0rd!");
+        const session = await openSession("alice@example.com", "tok-old");
         session.tokens.expiresAt = Date.now() + 1_000;
 
         vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
@@ -172,8 +176,7 @@ describe("apiFetch", () => {
         // /auth/refresh arrive après coup - ne doit PAS silencieusement adopter
         // son token juste parce que la vérification d'email n'a plus de session
         // à comparer.
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok-old", expiresAt: FAR_FUTURE }, 201)));
-        const session = await register("alice@example.com", "MasterPassw0rd!");
+        const session = await openSession("alice@example.com", "tok-old");
         session.tokens.expiresAt = Date.now() + 1_000; // déclenche le refresh proactif
 
         vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => {
@@ -208,8 +211,7 @@ describe("access token refresh", () => {
     }
 
     it("shares one refresh between parallel requests that hit a 401", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok-1", expiresAt: FAR_FUTURE }, 201)));
-        await register("user@example.com", "MasterPassw0rd!");
+        await openSession("user@example.com", "tok-1");
         const { fetchMock, refreshCalls } = routedFetch([
             jsonResponse({ accessToken: "tok-2", expiresAt: FAR_FUTURE, email: "user@example.com" }),
         ], 2);
@@ -222,8 +224,7 @@ describe("access token refresh", () => {
     });
 
     it("retries once when another tab rotated the session at the same moment", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok-1", expiresAt: FAR_FUTURE }, 201)));
-        await register("user@example.com", "MasterPassw0rd!");
+        await openSession("user@example.com", "tok-1");
         const { fetchMock, refreshCalls } = routedFetch([
             jsonResponse({ message: "Session invalide." }, 401),
             jsonResponse({ accessToken: "tok-3", expiresAt: FAR_FUTURE, email: "user@example.com" }),
@@ -244,8 +245,7 @@ describe("changeMasterPassword / deleteAccount (dedicated fetch, no auto-retry)"
     });
 
     it("changeMasterPassword throws AuthError on a wrong current password without retrying", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok", expiresAt: FAR_FUTURE }, 201)));
-        await register("user@example.com", "MasterPassw0rd!");
+        await openSession("user@example.com", "tok");
 
         const fetchMock = vi.fn()
             .mockResolvedValueOnce(jsonResponse({ saltBase64: SALT }))       // GET /auth/salt
@@ -259,8 +259,7 @@ describe("changeMasterPassword / deleteAccount (dedicated fetch, no auto-retry)"
     });
 
     it("changeMasterPassword sends the vault version the re-encrypted entries come from", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok", expiresAt: FAR_FUTURE }, 201)));
-        await register("user@example.com", "MasterPassw0rd!");
+        await openSession("user@example.com", "tok");
 
         const fetchMock = vi.fn()
             .mockResolvedValueOnce(jsonResponse({ saltBase64: SALT }))
@@ -275,8 +274,7 @@ describe("changeMasterPassword / deleteAccount (dedicated fetch, no auto-retry)"
     });
 
     it("deleteAccount re-derives the auth key from the freshly typed password, not the one in memory", async () => {
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok", expiresAt: FAR_FUTURE }, 201)));
-        await register("user@example.com", "MasterPassw0rd!");
+        await openSession("user@example.com", "tok");
 
         const fetchMock = vi.fn()
             .mockResolvedValueOnce(jsonResponse({ saltBase64: SALT }))
@@ -302,13 +300,45 @@ describe("session subscription", () => {
     it("notifies subscribers when a session starts and when it ends", async () => {
         const listener = vi.fn();
         const unsubscribe = subscribeSession(listener);
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "t", expiresAt: FAR_FUTURE }, 201)));
-
-        await register("user@example.com", "MasterPassw0rd!");
+        await openSession("user@example.com", "t");
         clearSession();
         unsubscribe();
         clearSession();
 
         expect(listener).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe("email confirmation", () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("verifyEmail() sends the token from the link and returns the server's message", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ message: "Adresse confirmée." }));
+        vi.stubGlobal("fetch", fetchMock);
+
+        await expect(verifyEmail("tok_123")).resolves.toBe("Adresse confirmée.");
+        expect(fetchMock.mock.calls[0][0]).toContain("/auth/verify-email");
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ token: "tok_123" });
+    });
+
+    it("resendVerification() asks for a new link for the normalized address", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ message: "Envoyé." }, 202));
+        vi.stubGlobal("fetch", fetchMock);
+
+        await resendVerification("  User@Example.com ");
+
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: "user@example.com" });
+    });
+
+    it("exposes the server's error code, so the login screen can offer to resend the link", async () => {
+        vi.stubGlobal("fetch", vi.fn(async (url: string) => url.includes("/auth/salt")
+            ? jsonResponse({ saltBase64: SALT })
+            : jsonResponse({ message: "Confirmez d'abord votre adresse email.", code: "EMAIL_NOT_VERIFIED" }, 403)));
+
+        const error = await login("user@example.com", "MasterPassw0rd!").catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(AuthError);
+        expect((error as AuthError).code).toBe("EMAIL_NOT_VERIFIED");
+        expect(getSession()).toBeNull();
     });
 });

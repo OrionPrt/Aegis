@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { buildTestApp, uniqueEmail, fakeAuthKeyHex, fakeSaltBase64, getCookie } from "../helpers.js";
+import { buildTestApp, uniqueEmail, fakeAuthKeyHex, fakeSaltBase64, getCookie, registerVerified } from "../helpers.js";
 import { prisma } from "../../src/server/lib/prisma.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -26,11 +26,7 @@ describe("access tokens bound to their session, refresh token rotation", () => {
         const email = uniqueEmail(prefix);
         emails.push(email);
         const authKeyHex = fakeAuthKeyHex(prefix);
-        const res = await app.inject({
-            method: "POST",
-            url: "/api/auth/register",
-            payload: { email, authKeyHex, saltBase64: fakeSaltBase64() },
-        });
+        const res = await registerVerified(app, email, authKeyHex);
         return { email, authKeyHex, token: res.json().accessToken as string, cookie: getCookie(res, "aegis_rt")! };
     }
 

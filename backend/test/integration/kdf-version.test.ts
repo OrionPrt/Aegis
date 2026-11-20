@@ -37,7 +37,7 @@ describe("key derivation version", () => {
         const email = uniqueEmail("kdf-store");
         emails.push(email);
 
-        expect((await register(email, { kdfVersion: CURRENT_KDF_VERSION })).statusCode).toBe(201);
+        expect((await register(email, { kdfVersion: CURRENT_KDF_VERSION })).statusCode).toBe(202);
 
         const user = await prisma.user.findUniqueOrThrow({ where: { email } });
         expect(user.kdfVersion).toBe(CURRENT_KDF_VERSION);

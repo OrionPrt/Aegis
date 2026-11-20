@@ -4,7 +4,7 @@ import { render, screen, cleanup, act } from "@testing-library/react";
 import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
 import type { LoginRedirectState } from "./ProtectedRoute";
-import { clearSession, register } from "../lib/auth-client";
+import { clearSession, login } from "../lib/auth-client";
 
 function LoginProbe() {
     const state = useLocation().state as LoginRedirectState | null;
@@ -23,10 +23,14 @@ function renderVault() {
 }
 
 async function openSession() {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-        ok: true, status: 201, json: async () => ({ accessToken: "t", expiresAt: Date.now() + 900_000 }),
-    }));
-    await register("user@example.com", "MasterPassw0rd!");
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({
+        ok: true,
+        status: 200,
+        json: async () => url.includes("/auth/salt")
+            ? { saltBase64: btoa("x".repeat(32)) }
+            : { accessToken: "t", expiresAt: Date.now() + 900_000 },
+    })));
+    await login("user@example.com", "MasterPassw0rd!");
 }
 
 afterEach(() => {

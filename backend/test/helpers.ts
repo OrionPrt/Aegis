@@ -52,3 +52,25 @@ export async function cleanupUser(email: string): Promise<void> {
 export function getCookie(res: LightMyRequestResponse, name: string): string | undefined {
     return res.cookies.find((c) => c.name === name)?.value;
 }
+
+/**
+ * Inscrit un compte, confirme son adresse (comme le ferait le lien de
+ * l'email de confirmation) puis se connecte. Retourne la réponse du login :
+ * accessToken dans le corps, cookie aegis_rt.
+ */
+export async function registerVerified(
+    app: FastifyInstance,
+    email: string,
+    authKeyHex = fakeAuthKeyHex(),
+): Promise<LightMyRequestResponse> {
+    await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: { email, authKeyHex, saltBase64: fakeSaltBase64() },
+    });
+    await prisma.user.update({
+        where: { email },
+        data:  { emailVerifiedAt: new Date(), emailVerificationTokenHash: null, emailVerificationExpiresAt: null },
+    });
+    return app.inject({ method: "POST", url: "/api/auth/login", payload: { email, authKeyHex } });
+}

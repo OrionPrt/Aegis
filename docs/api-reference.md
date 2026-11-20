@@ -13,18 +13,38 @@ global ou verrouillage de compte, avec header `Retry-After`).
 
 ### `POST /api/auth/register`
 
-Crée un compte. Le mot de passe maître ne transite jamais - seul `authKeyHex`
-(dérivé côté client) est envoyé.
+Crée un compte **en attente de confirmation** et envoie un lien par email. Le
+mot de passe maître ne transite jamais - seul `authKeyHex` (dérivé côté
+client) est envoyé. N'ouvre aucune session.
 
 ```json
 // Requête
 { "email": "a@b.com", "authKeyHex": "<64 hex>", "saltBase64": "<32 octets en base64>", "kdfVersion": 1 }
 
-// Réponse 201
-{ "accessToken": "<jwt>", "expiresAt": 1234567890000 }
+// Réponse 202 - identique que l'adresse soit libre, inscrite ou en attente
+{ "message": "Si cette adresse peut être utilisée, un email de confirmation vient d'y être envoyé. …" }
 ```
-Pose aussi le cookie `aegis_rt`. `409` si l'email existe déjà (délai constant
-appliqué avant la réponse, voir [security-model.md](./security-model.md)).
+
+### `POST /api/auth/verify-email`
+
+```json
+// Requête : le jeton du lien /verify-email?token=…
+{ "token": "<base64url>" }
+
+// Réponse 200
+{ "message": "Adresse confirmée. Vous pouvez vous connecter." }
+```
+`400` si le lien est invalide, déjà utilisé ou expiré (24 h).
+
+### `POST /api/auth/resend-verification`
+
+```json
+// Requête
+{ "email": "a@b.com" }
+
+// Réponse 202 - identique dans tous les cas
+{ "message": "Si une inscription attend d'être confirmée pour cette adresse, un nouveau lien vient d'y être envoyé." }
+```
 
 ### `GET /api/auth/salt?email=...`
 
@@ -45,7 +65,9 @@ de son compte, ou un sel factice et la version actuelle si l'email n'existe pas
 // Réponse 200
 { "accessToken": "<jwt>", "expiresAt": 1234567890000 }
 ```
-`401` si identifiants incorrects, `429` si compte verrouillé. Pose le cookie
+`401` si identifiants incorrects, `429` si l'adresse est verrouillée (qu'elle
+ait un compte ou non), `403` avec `"code": "EMAIL_NOT_VERIFIED"` si le mot de
+passe est bon mais l'adresse pas encore confirmée. Pose le cookie
 `aegis_rt` (révoque d'abord toute session existante pour ce compte sur ce
 même navigateur - voir [security-model.md](./security-model.md)).
 

@@ -23,6 +23,9 @@ export function checkEnvironment(env: NodeJS.ProcessEnv = process.env): string[]
     if (env.NODE_ENV === "production" && !env.DATABASE_URL) {
         throw new Error("DATABASE_URL est requis en production.");
     }
+    if (env.NODE_ENV === "production" && !env.APP_URL && !env.VERCEL_PROJECT_PRODUCTION_URL) {
+        throw new Error("APP_URL est requis en production : il sert aux liens des emails de confirmation.");
+    }
 
     const warnings: string[] = [];
     if (env.JWT_SECRET.length < MIN_JWT_SECRET_LENGTH) {

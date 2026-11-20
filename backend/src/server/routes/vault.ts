@@ -17,7 +17,7 @@ import { z } from "zod";
 import { MAX_VAULT_CIPHERTEXT_LENGTH, VAULT_BODY_LIMIT } from "../lib/limits.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "./auth.js";
-import { recordFailedAttempt, reserveAttempt, sendLocked } from "../lib/lockout.js";
+import { clearAttempts, recordFailedAttempt, reserveAttempt, sendLocked } from "../lib/lockout.js";
 
 // ─────────────────────────────────────────────────────────
 // TYPES
@@ -164,12 +164,12 @@ export async function vaultRoutes(app: FastifyInstance) {
                 return reply.status(404).send({ message: "Utilisateur introuvable." });
             }
 
-            const retryAfter = await reserveAttempt(userId);
+            const retryAfter = await reserveAttempt(user.email);
             if (retryAfter !== null) return sendLocked(reply, retryAfter);
 
             const isValid = await bcrypt.compare(authKeyHex, user.authKeyHash);
             if (!isValid) {
-                await recordFailedAttempt(userId, user.email, req, "ACCOUNT_DELETE_FAILED");
+                await recordFailedAttempt(user.email, req, { userId, action: "ACCOUNT_DELETE_FAILED" });
                 return reply.status(401).send({ message: "Mot de passe incorrect." });
             }
 
@@ -177,6 +177,7 @@ export async function vaultRoutes(app: FastifyInstance) {
             // onDelete: Cascade sur User, l'entrée serait supprimée dans le
             // même instant que le compte - elle n'apporterait aucune trace.
             await prisma.user.delete({ where: { id: userId } });
+            await clearAttempts(user.email);
 
             // Suppression du cookie de refresh token
             reply.clearCookie("aegis_rt", {

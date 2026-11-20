@@ -111,19 +111,40 @@ Objectif : qu'un attaquant ne puisse pas déterminer si un email est inscrit
 - Message d'erreur générique ("Identifiants incorrects") qu'il s'agisse d'un
   email inconnu ou d'un mauvais mot de passe.
 
-Limites connues, à fermer avec une vérification d'email à l'inscription
-(issue #24) :
+- **`POST /api/auth/register`** répond toujours `202` avec le même message,
+  que l'adresse soit libre, déjà inscrite ou en attente de confirmation, après
+  un délai aléatoire (200-400 ms). Aucun email n'est envoyé au titulaire d'une
+  adresse déjà inscrite.
+- **Le verrouillage ne distingue pas les adresses** : le compteur est indexé
+  par l'adresse (voir ci-dessous), qu'elle ait un compte ou non. Après 3
+  échecs, `/login` répond `429` dans les deux cas.
 
-- **`POST /api/auth/register`** répond `409` sur un email déjà pris (le
-  `bcrypt.hash` exécuté avant égalise seulement le temps de réponse).
-- Seul un compte réel peut être bloqué : après 3 échecs, `/login` répond `429`
-  pour un compte existant et toujours `401` pour un email inconnu.
+## Confirmation de l'adresse email
+
+- L'inscription crée un compte **en attente** et envoie un lien à usage
+  unique (`/verify-email?token=…`), valable 24 h (`lib/email-verification.ts`).
+  Seule l'empreinte sha256 du jeton est stockée.
+- Tant que l'adresse n'est pas confirmée, la connexion répond `403`
+  (`EMAIL_NOT_VERIFIED`). Ce `403` n'apparaît qu'avec le bon mot de passe :
+  un mauvais mot de passe reçoit le `401` habituel, rien n'est révélé à un tiers.
+- Une inscription en attente encore valable n'est pas remplacée par une
+  nouvelle inscription sur la même adresse (un tiers ne peut pas évincer
+  l'inscription légitime) ; une fois expirée, elle l'est.
+- `POST /api/auth/resend-verification` envoie un nouveau lien à une
+  inscription en attente (l'ancien cesse de fonctionner), avec la même réponse
+  dans tous les cas.
+- Le lien utilise `APP_URL` (ou le domaine de production fourni par Vercel),
+  jamais l'en-tête `Host` de la requête, que le client contrôle.
+- La page de confirmation attend un clic : certains filtres de messagerie
+  ouvrent les liens des emails tout seuls.
 
 ## Verrouillage de compte (brute-force)
 
 - `MAX_FAILED_ATTEMPTS = 3` tentatives échouées déclenchent un verrou de
-  `LOCKOUT_DURATION_MS = 15 minutes` (`User.lockedUntil`), dans
-  `lib/lockout.ts`.
+  `LOCKOUT_DURATION_MS = 15 minutes`, dans `lib/lockout.ts`.
+- Le compteur vit dans la table `AuthThrottle`, indexée par
+  `HMAC(AEGIS_DUMMY_SALT, email)` : une adresse sans compte se verrouille comme
+  une adresse inscrite, et l'adresse elle-même n'est pas stockée.
 - Chaque tentative est **réservée avant** la vérification bcrypt, par un
   incrément atomique en base conditionné à `failedAttempts < 3` : des
   requêtes envoyées en parallèle ne peuvent pas tester plus de 3 mots de
@@ -133,8 +154,9 @@ Limites connues, à fermer avec une vérification d'email à l'inscription
 - Le compteur est partagé entre `/login`, `/change-password` et
   `DELETE /api/vault` (suppression de compte) - toute action nécessitant une
   re-preuve du mot de passe incrémente le même compteur.
-- Un email de notification (`sendAccountLockedEmail`) est envoyé au moment où
-  le verrou se déclenche (pas à chaque tentative).
+- Un email de notification (`sendAccountLockedEmail`) est envoyé au titulaire
+  d'un compte existant au moment où le verrou se déclenche (pas à chaque
+  tentative).
 - Réponse `429` avec header `Retry-After` en secondes pendant le verrou.
 
 Le blocage reste déclenchable par quiconque connaît l'adresse (3 essais

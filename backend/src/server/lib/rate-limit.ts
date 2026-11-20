@@ -9,7 +9,8 @@
  *
  * - une limite globale par IP sur toute l'API ;
  * - une limite plus stricte par IP sur les routes qui testent une preuve
- *   de mot de passe ou exposent un sel (login, inscription, /salt).
+ *   de mot de passe, exposent un sel ou envoient un email (login,
+ *   inscription, /salt, confirmation d'adresse).
  *
  * Sans Upstash (local, CI), la limitation est désactivée - sauf en
  * production, où l'application refuse de démarrer.
@@ -35,6 +36,8 @@ export const AUTH_RATE_LIMITED_ROUTES = new Set([
     "POST /api/auth/login",
     "POST /api/auth/register",
     "GET /api/auth/salt",
+    "POST /api/auth/verify-email",
+    "POST /api/auth/resend-verification",
 ]);
 
 /**
