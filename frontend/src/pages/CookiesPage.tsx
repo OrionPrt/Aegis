@@ -42,14 +42,10 @@ export default function CookiesPage() {
             <p>
                 Aegis ne fait appel à aucun outil d'analytics (Google Analytics ou
                 équivalent), aucun pixel publicitaire, aucun réseau social intégré.
-                Les seules ressources externes chargées par l'application sont :
+                Les polices sont servies par Aegis lui-même. La seule ressource
+                externe que l'application peut contacter est :
             </p>
             <ul>
-                <li>
-                    <strong>Google Fonts</strong> (polices Inter et IBM Plex Mono) -
-                    Google peut techniquement voir votre adresse IP au moment du
-                    chargement de la police, indépendamment de tout cookie.
-                </li>
                 <li>
                     <strong>Have I Been Pwned</strong> (api.pwnedpasswords.com) -
                     uniquement si vous activez volontairement la vérification de

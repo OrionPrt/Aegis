@@ -2,6 +2,33 @@
    AEGIS — Design tokens & global reset
    ═══════════════════════════════════════════════════════ */
 
+/* Polices servies par le site lui-même (public/fonts, licence SIL OFL 1.1) :
+   aucune requête vers un tiers, qui verrait sinon l'IP de chaque visiteur.
+   Sous-ensemble latin, qui couvre le français. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/fonts/inter-latin-wght.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/ibm-plex-mono-latin-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/ibm-plex-mono-latin-500.woff2') format('woff2');
+}
+
 :root {
   /* Surfaces */
   --bg-base:      #0B0D12;
