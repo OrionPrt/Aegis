@@ -169,6 +169,16 @@ Deux couches complémentaires :
     (caméra/micro/géoloc désactivés), `Strict-Transport-Security` (HSTS,
     1 an, `includeSubDomains`, `preload`).
 
+## Robustesse du mot de passe maître
+
+À l'inscription et au changement de mot de passe, le mot de passe maître est
+évalué par zxcvbn-ts (`lib/password-strength.ts`) : dictionnaires de mots de
+passe courants et de mots français, motifs clavier azerty/qwerty, dates,
+substitutions « l33t », et l'email du compte. Il faut au moins 12 caractères et
+un score de 4, soit au moins 10^10 essais estimés : un attaquant qui obtient la
+base peut l'attaquer hors ligne. Les dictionnaires (~520 Ko compressés) ne sont
+chargés que sur ces deux écrans.
+
 ## Vérification de fuites de mots de passe (Have I Been Pwned)
 
 Fonctionnalité opt-in (bouton explicite, jamais automatique) dans
@@ -179,6 +189,9 @@ Fonctionnalité opt-in (bouton explicite, jamais automatique) dans
   `api.pwnedpasswords.com` (k-anonymat) - le service renvoie toutes les
   terminaisons connues pour ce préfixe, la correspondance exacte se fait en
   local. Le mot de passe et son hash complet ne quittent jamais l'appareil.
+- La requête porte l'en-tête `Add-Padding: true` : le service complète sa
+  réponse avec de fausses lignes (compteur à 0), pour que sa taille ne trahisse
+  pas le préfixe demandé.
 
 ## Journal d'audit
 
