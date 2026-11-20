@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     deriveKeys,
+    CURRENT_KDF_VERSION,
     generateSalt,
     encryptVault,
     decryptVault,
@@ -49,6 +50,24 @@ describe("deriveKeys", () => {
         const a = await deriveKeys("MasterPassw0rd!", "user@example.com", salt);
         const b = await deriveKeys("DifferentPassw0rd!", "user@example.com", salt);
         expect(a.authKeyHex).not.toBe(b.authKeyHex);
+    });
+
+    it("ignores surrounding spaces and case in the email (same keys as at registration)", async () => {
+        const salt = generateSalt();
+        const a = await deriveKeys("MasterPassw0rd!", "user@example.com", salt);
+        const b = await deriveKeys("MasterPassw0rd!", "  User@Example.com ", salt);
+        expect(a.authKeyHex).toBe(b.authKeyHex);
+    });
+
+    it("derives with the parameters of the requested version, the current one by default", async () => {
+        const salt = generateSalt();
+        const implicit = await deriveKeys("MasterPassw0rd!", "user@example.com", salt);
+        const explicit = await deriveKeys("MasterPassw0rd!", "user@example.com", salt, CURRENT_KDF_VERSION);
+        expect(implicit.authKeyHex).toBe(explicit.authKeyHex);
+    });
+
+    it("refuses an unknown derivation version instead of guessing parameters", async () => {
+        await expect(deriveKeys("MasterPassw0rd!", "user@example.com", generateSalt(), 99)).rejects.toThrow(/version/i);
     });
 
     it("authKeyHex is 64 lowercase hex characters (server-side format contract)", async () => {

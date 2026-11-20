@@ -25,6 +25,7 @@ import {
 } from "../lib/audit.js";
 import { sendPasswordChangedEmail, sendNewIpLoginEmail } from "../lib/email.js";
 import { clearAttempts, recordFailedAttempt, reserveAttempt, sendLocked } from "../lib/lockout.js";
+import { CURRENT_KDF_VERSION, KdfVersionSchema } from "../lib/kdf.js";
 
 interface JwtPayload { sub: string; email: string; }
 
@@ -68,6 +69,8 @@ const RegisterSchema = z.object({
     email:      z.string().email().max(254).toLowerCase().trim(),
     authKeyHex: z.string().length(64).regex(/^[0-9a-f]+$/),
     saltBase64: SaltSchema,
+    // Absente pour un client antérieur au versionnage : version actuelle.
+    kdfVersion: KdfVersionSchema.default(CURRENT_KDF_VERSION),
 });
 
 const LoginSchema = z.object({
@@ -126,7 +129,7 @@ export async function authRoutes(app: FastifyInstance) {
             return reply.status(400).send({ message: "Données invalides.", errors: parsed.error.flatten() });
         }
 
-        const { email, authKeyHex, saltBase64 } = parsed.data;
+        const { email, authKeyHex, saltBase64, kdfVersion } = parsed.data;
 
         const existing = await prisma.user.findUnique({ where: { email } });
         if (existing) {
@@ -136,7 +139,7 @@ export async function authRoutes(app: FastifyInstance) {
 
         const authKeyHash = await bcrypt.hash(authKeyHex, BCRYPT_ROUNDS);
         const user = await prisma.user.create({
-            data: { email, authKeyHash, saltBase64 },
+            data: { email, authKeyHash, saltBase64, kdfVersion },
         });
 
         const accessToken    = await reply.jwtSign({ sub: user.id, email }, { expiresIn: "15m" });
@@ -161,13 +164,14 @@ export async function authRoutes(app: FastifyInstance) {
 
         const user = await prisma.user.findUnique({
             where:  { email },
-            select: { saltBase64: true },
+            select: { saltBase64: true, kdfVersion: true },
         });
 
         const saltBase64 = user?.saltBase64 ?? fakeSaltFor(email);
         await new Promise((r) => setTimeout(r, 200 + Math.random() * 100));
 
-        return reply.send({ saltBase64 });
+        // Un email inconnu reçoit la version actuelle, comme un compte neuf.
+        return reply.send({ saltBase64, kdfVersion: user?.kdfVersion ?? CURRENT_KDF_VERSION });
     });
 
     // ── POST /api/auth/login ────────────────────────────────

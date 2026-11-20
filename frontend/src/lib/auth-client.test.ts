@@ -3,6 +3,7 @@ import {
     register, login, logout, clearSession, getSession, isAuthenticated, subscribeSession,
     apiFetch, changeMasterPassword, deleteAccount, AuthError,
 } from "./auth-client.js";
+import { CURRENT_KDF_VERSION } from "./crypto.js";
 
 function jsonResponse(body: unknown, status = 200): Response {
     return {
@@ -42,6 +43,24 @@ describe("register / login / session state", () => {
         expect(session.tokens.accessToken).toBe("tok-2");
         expect(fetchMock.mock.calls[0][0]).toContain("/auth/salt?email=");
         expect(fetchMock.mock.calls[1][0]).toContain("/auth/login");
+    });
+
+    it("register() records the key derivation version it used", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ accessToken: "t", expiresAt: FAR_FUTURE }, 201));
+        vi.stubGlobal("fetch", fetchMock);
+
+        await register("user@example.com", "MasterPassw0rd!");
+
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body).kdfVersion).toBe(CURRENT_KDF_VERSION);
+    });
+
+    it("login() derives with the account's version from /salt and refuses one it does not know", async () => {
+        const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ saltBase64: SALT, kdfVersion: 99 }));
+        vi.stubGlobal("fetch", fetchMock);
+
+        await expect(login("user@example.com", "MasterPassw0rd!")).rejects.toThrow(/version/i);
+        // Aucune tentative de connexion avec des clés dérivées au hasard.
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it("clearSession() makes isAuthenticated() false and getSession() null", async () => {

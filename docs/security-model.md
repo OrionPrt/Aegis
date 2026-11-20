@@ -32,6 +32,13 @@ masterPassword + email + salt
   `bcrypt(authKeyHex)`.
 - Le sel (32 octets aléatoires) est généré côté client à l'inscription et
   stocké côté serveur (`User.saltBase64`), lié au compte.
+- Les paramètres Argon2 sont **versionnés** (`KDF_PARAMS` dans `crypto.ts`) :
+  la version de chaque compte est stockée (`User.kdfVersion`) et renvoyée par
+  `/auth/salt`. Pour les renforcer, on ajoute une version (client et
+  `backend/src/server/lib/kdf.ts`) ; les comptes existants continuent de
+  dériver avec la leur.
+- L'email est normalisé (`trim` + minuscules) dans `deriveKeys` elle-même, pour
+  que l'inscription et la connexion dérivent toujours les mêmes clés.
 
 ### Chiffrement du coffre-fort (AES-256-GCM)
 

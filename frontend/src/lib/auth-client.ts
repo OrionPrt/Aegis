@@ -22,7 +22,7 @@
  *  5. masterKey reste uniquement en mémoire, jamais persistée
  */
 
-import { deriveKeys, generateSalt, encryptVault, type DerivedKeys, type EncryptedPayload, type VaultEntry } from "./crypto";
+import { deriveKeys, generateSalt, encryptVault, CURRENT_KDF_VERSION, type DerivedKeys, type EncryptedPayload, type VaultEntry } from "./crypto";
 
 // ─────────────────────────────────────────────────────────
 // TYPES
@@ -32,6 +32,8 @@ export interface RegisterPayload {
     email: string;
     authKeyHex: string;
     saltBase64: string;
+    /** Version des paramètres Argon2 utilisés, stockée avec le compte. */
+    kdfVersion: number;
 }
 
 export interface LoginPayload {
@@ -52,6 +54,8 @@ export interface AuthSession {
 
 export interface SaltResponse {
     saltBase64: string;
+    /** Version des paramètres Argon2 du compte. */
+    kdfVersion: number;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -116,13 +120,14 @@ export async function register(
     const saltBase64 = generateSalt();
 
     // 2. Dérivation des clés — peut prendre ~1-3s (c'est voulu : Argon2id)
-    const keys = await deriveKeys(masterPassword, email, saltBase64);
+    const keys = await deriveKeys(masterPassword, email, saltBase64, CURRENT_KDF_VERSION);
 
     // 3. Envoi au serveur — le master password NE TRANSITE PAS
     const payload: RegisterPayload = {
         email: email.toLowerCase().trim(),
         authKeyHex: keys.authKeyHex,
         saltBase64,
+        kdfVersion: CURRENT_KDF_VERSION,
     };
 
     const response = await apiFetch("/auth/register", {
@@ -165,12 +170,12 @@ export async function login(
 
     // 1. Récupération du sel (le serveur retourne toujours un sel,
     //    même si l'email n'existe pas — évite l'énumération d'emails)
-    const { saltBase64 } = await apiFetch(
+    const { saltBase64, kdfVersion } = await apiFetch(
         `/auth/salt?email=${encodeURIComponent(normalizedEmail)}`
     ) as SaltResponse;
 
-    // 2. Dérivation des clés
-    const keys = await deriveKeys(masterPassword, normalizedEmail, saltBase64);
+    // 2. Dérivation des clés, avec les paramètres propres au compte
+    const keys = await deriveKeys(masterPassword, normalizedEmail, saltBase64, kdfVersion);
 
     // 3. Vérification de l'authKey côté serveur
     const payload: LoginPayload = {
@@ -254,12 +259,13 @@ export async function changeMasterPassword(
     if (!session) throw new AuthError("Session expirée.", 401);
     const { email } = session;
 
-    const { saltBase64 } = await apiFetch(
+    const { saltBase64, kdfVersion } = await apiFetch(
         `/auth/salt?email=${encodeURIComponent(email)}`
     ) as SaltResponse;
 
-    const currentKeys = await deriveKeys(currentPassword, email, saltBase64);
-    const newKeys     = await deriveKeys(newPassword, email, saltBase64);
+    // Le compte garde sa version de dérivation : le serveur ne la change pas ici.
+    const currentKeys = await deriveKeys(currentPassword, email, saltBase64, kdfVersion);
+    const newKeys     = await deriveKeys(newPassword, email, saltBase64, kdfVersion);
 
     const vault = await encryptVault(vaultEntries, newKeys.masterKey);
 
@@ -317,11 +323,11 @@ export async function deleteAccount(password: string): Promise<void> {
     if (!session) throw new AuthError("Session expirée.", 401);
     const { email } = session;
 
-    const { saltBase64 } = await apiFetch(
+    const { saltBase64, kdfVersion } = await apiFetch(
         `/auth/salt?email=${encodeURIComponent(email)}`
     ) as SaltResponse;
 
-    const keys = await deriveKeys(password, email, saltBase64);
+    const keys = await deriveKeys(password, email, saltBase64, kdfVersion);
     const payload: DeleteAccountPayload = { authKeyHex: keys.authKeyHex };
 
     // Requête dédiée (pas apiFetch) : même raison que changeMasterPassword -
