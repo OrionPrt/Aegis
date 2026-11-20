@@ -66,3 +66,21 @@ describe("toEntryData", () => {
         expect(data.username).toBeUndefined();
     });
 });
+
+describe("initialFormData / folder", () => {
+    const existing = { id: "e1", label: "GitHub", category: "login" as const, createdAt: 0, updatedAt: 0 };
+
+    it("puts a new entry in the folder being displayed", () => {
+        expect(initialFormData(null, "login", "f1").folderId).toBe("f1");
+        expect(initialFormData(null, "login").folderId).toBeUndefined();
+    });
+
+    it("keeps the folder of an edited entry, even without a folder, whatever is displayed", () => {
+        expect(initialFormData({ ...existing, folderId: "f2" }, "login", "f1").folderId).toBe("f2");
+        expect(initialFormData(existing, "login", "f1").folderId).toBeUndefined();
+    });
+
+    it("saves the chosen folder with the entry", () => {
+        expect(toEntryData(loginForm({ folderId: "f1" }), "", "", "unknown").folderId).toBe("f1");
+    });
+});

@@ -85,12 +85,17 @@ function parseFolders(values: unknown[]): VaultFolder[] {
     return folders;
 }
 
-/** Retire le dossier d'une entrée s'il n'existe pas (ou plus). */
-function withExistingFolder(entry: VaultEntry, folderIds: ReadonlySet<string>): VaultEntry {
-    if (entry.folderId === undefined || folderIds.has(entry.folderId)) return entry;
+/** Copie de l'entrée sans dossier (la clé disparaît, elle ne vaut pas undefined). */
+export function withoutFolder<E extends VaultEntry>(entry: E): E {
     const copy = { ...entry };
     delete copy.folderId;
     return copy;
+}
+
+/** Retire le dossier d'une entrée s'il n'existe pas (ou plus). */
+function withExistingFolder(entry: VaultEntry, folderIds: ReadonlySet<string>): VaultEntry {
+    if (entry.folderId === undefined || folderIds.has(entry.folderId)) return entry;
+    return withoutFolder(entry);
 }
 
 function parseJson(plaintext: string): unknown {

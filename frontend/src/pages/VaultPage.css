@@ -157,6 +157,8 @@
 
 .nav-icon { display: flex; width: 16px; flex-shrink: 0; }
 .nav-label { flex: 1; }
+/* Libellé court de la barre d'onglets mobile (voir MOBILE_CATEGORY_LABELS). */
+.nav-label-mobile { display: none; }
 
 .nav-count {
     font-size: var(--text-2xs);
@@ -1243,6 +1245,9 @@
     }
 
     .nav-count { display: none; }
+
+    .nav-label-full   { display: none; }
+    .nav-label-mobile { display: inline; }
 
     /* Seuls les onglets de catégorie restent dans la barre du bas -
        Générateur et Sécurité passent dans la topbar (icônes). */

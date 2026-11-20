@@ -9,8 +9,12 @@ function loginEntry(url: string): VaultEntryExtended {
     return { id: "1", label: "Site", category: "login", username: "me", password: "pw", url, createdAt: 0, updatedAt: 0 };
 }
 
-function renderDetail(entry: VaultEntryExtended) {
-    return render(<EntryDetail entry={entry} saving={false} onBack={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} />);
+function renderDetail(entry: VaultEntryExtended, folderName?: string) {
+    const onMove = vi.fn();
+    render(
+        <EntryDetail entry={entry} folderName={folderName} saving={false} onBack={vi.fn()} onEdit={vi.fn()} onMove={onMove} onDelete={vi.fn()} />,
+    );
+    return { onMove };
 }
 
 afterEach(() => {
@@ -49,5 +53,20 @@ describe("EntryDetail", () => {
         await user.click(screen.getAllByTitle("Copier")[0]);
 
         expect(await screen.findByRole("alert")).toHaveTextContent("presse-papiers");
+    });
+
+    it("shows the folder of the entry and offers to move it elsewhere", async () => {
+        const user = userEvent.setup();
+        const { onMove } = renderDetail(loginEntry("https://github.com"), "Perso");
+
+        expect(screen.getByText("Perso")).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Déplacer vers un dossier" }));
+
+        expect(onMove).toHaveBeenCalledOnce();
+    });
+
+    it("shows no folder field for an entry without a folder", () => {
+        renderDetail(loginEntry("https://github.com"));
+        expect(screen.queryByText("Dossier")).toBeNull();
     });
 });

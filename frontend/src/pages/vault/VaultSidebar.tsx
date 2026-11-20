@@ -1,6 +1,7 @@
+import type { ReactNode } from "react";
 import { KeyRound, LogOut, RefreshCw, Search, Shield, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
-import { CATEGORY_ICONS, CATEGORY_LABELS } from "./format";
-import type { Category } from "./types";
+import { CATEGORY_ICONS, CATEGORY_LABELS, MOBILE_CATEGORY_LABELS } from "./format";
+import type { Category, VaultView } from "./types";
 
 const SIDEBAR_CATEGORIES = ["all", "login", "card", "note"] as const;
 
@@ -8,9 +9,11 @@ interface VaultSidebarProps {
     email: string | undefined;
     search: string;
     onSearchChange: (value: string) => void;
-    category: Category;
+    view: VaultView;
     onCategoryChange: (category: Category) => void;
     counts: Record<Category, number>;
+    /** Section « Dossiers », placée sous les catégories (voir SidebarFolders). */
+    folderSection: ReactNode;
     onOpenGenerator: () => void;
     onOpenSecurityAudit: () => void;
     onOpenSessions: () => void;
@@ -20,7 +23,7 @@ interface VaultSidebarProps {
 }
 
 export default function VaultSidebar({
-    email, search, onSearchChange, category, onCategoryChange, counts,
+    email, search, onSearchChange, view, onCategoryChange, counts, folderSection,
     onOpenGenerator, onOpenSecurityAudit, onOpenSessions, onLogout, onChangePassword, onDeleteAccount,
 }: VaultSidebarProps) {
     return (
@@ -49,15 +52,25 @@ export default function VaultSidebar({
                     return (
                         <button
                             key={cat}
-                            className={`nav-item ${category === cat ? "active" : ""}`}
+                            className={`nav-item ${view.kind === "category" && view.category === cat ? "active" : ""}`}
                             onClick={() => onCategoryChange(cat)}
                         >
                             <span className="nav-icon"><CatIcon size={15} strokeWidth={2} /></span>
-                            <span className="nav-label">{CATEGORY_LABELS[cat]}</span>
+                            <span className="nav-label">
+                                {MOBILE_CATEGORY_LABELS[cat] ? (
+                                    // Un seul des deux est affiché (CSS) : c'est lui qui nomme le bouton.
+                                    <>
+                                        <span className="nav-label-full">{CATEGORY_LABELS[cat]}</span>
+                                        <span className="nav-label-mobile">{MOBILE_CATEGORY_LABELS[cat]}</span>
+                                    </>
+                                ) : CATEGORY_LABELS[cat]}
+                            </span>
                             <span className="nav-count">{counts[cat]}</span>
                         </button>
                     );
                 })}
+
+                {folderSection}
 
                 <div className="nav-section-label">Outils</div>
                 <button className="nav-item nav-item-extra" onClick={onOpenGenerator}>

@@ -2,6 +2,7 @@ import type { KeyboardEvent } from "react";
 import { GripVertical, ShieldCheck } from "lucide-react";
 import { ENTRY_ID_ATTRIBUTE } from "../../hooks/useTouchReorder";
 import type { TouchHandleProps } from "../../hooks/useTouchReorder";
+import { ENTRY_DRAG_TYPE } from "./folders";
 import { entrySubtitle, formatDate, getInitial } from "./format";
 import type { VaultEntryExtended } from "./types";
 
@@ -54,7 +55,12 @@ export default function EntryCard({
             // Sur Android, un appui long lancerait le glisser natif et
             // interromprait le geste tactile en cours sur la poignée.
             draggable={reorderable && nativeDragEnabled}
-            onDragStart={onDragStart}
+            onDragStart={(e) => {
+                // Lu par les dossiers de la barre latérale, où la carte peut être déposée.
+                e.dataTransfer.setData(ENTRY_DRAG_TYPE, entry.id);
+                e.dataTransfer.effectAllowed = "move";
+                onDragStart();
+            }}
             onDragEnter={onDragEnter}
             onDragOver={(e) => e.preventDefault()}
             onDragEnd={onDragEnd}

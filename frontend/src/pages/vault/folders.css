@@ -1,0 +1,191 @@
+/*
+ * Dossiers du coffre : section de la barre latérale, onglet mobile, actions
+ * de la barre du haut, sélecteur du formulaire et listes de choix.
+ * Importé après VaultPage.css, dont il reprend les jetons et les familles
+ * de contrôles (nav-item, icon-btn, btn-edit).
+ */
+
+/* ── Barre latérale ─────────────────────────────────────── */
+
+.nav-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2px 0 8px;
+    margin: 18px 0 4px;
+}
+
+/* Même typographie que .nav-section-label, sans sa marge. */
+.nav-section-title {
+    font-size: var(--text-2xs);
+    font-weight: 500;
+    color: var(--text-faint);
+}
+
+.nav-section-action {
+    padding: 4px;
+    color: var(--text-faint);
+}
+
+.nav-empty-hint {
+    margin: 0 0 4px;
+    padding: 4px 10px;
+    font-size: var(--text-xs);
+    color: var(--text-faint);
+}
+
+.nav-item-folder .nav-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Une carte d'entrée glissée au-dessus du dossier. */
+.nav-item.drop-target {
+    background: var(--accent-soft);
+    color: var(--accent-high);
+    box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Onglet « Dossiers » : barre du bas uniquement. */
+.nav-item-folders-mobile { display: none; }
+
+/* ── Barre du haut ──────────────────────────────────────── */
+
+.topbar-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.topbar-heading .icon-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.icon-btn-danger:hover:not(:disabled) {
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+/* ── Panneau de détail ──────────────────────────────────── */
+
+.detail-folder {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+/* Même famille que .btn-edit, réduit à son icône. */
+.btn-move {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-overlay);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 9px 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: border-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+
+.btn-move:hover:not(:disabled) {
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+}
+
+.btn-move:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Formulaire d'entrée ────────────────────────────────── */
+
+.form-row select {
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 9px 12px;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    outline: none;
+    transition: border-color 0.15s var(--ease);
+}
+
+.form-row select:focus { border-color: var(--accent); }
+
+/* ── Listes de choix (« Déplacer vers… », « Dossiers ») ─── */
+
+.folder-choices {
+    list-style: none;
+    margin: 0 0 var(--space-3);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.folder-choice {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+
+.folder-choice:hover:not(:disabled) {
+    background: var(--bg-overlay);
+    color: var(--text-primary);
+}
+
+.folder-choice.selected {
+    background: var(--accent-soft);
+    border-color: rgba(198, 161, 91, 0.3);
+    color: var(--accent-high);
+}
+
+.folder-choice:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.folder-choice-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-choice-check { flex-shrink: 0; }
+
+/* Comme .nav-count, que la barre mobile masque : ici il reste visible. */
+.folder-choice-count {
+    font-size: var(--text-2xs);
+    background: var(--border);
+    color: var(--text-muted);
+    padding: 2px 7px;
+    border-radius: var(--radius-md);
+    font-family: var(--font-mono);
+}
+
+/* ── Mobile : la liste n'a pas la place dans la barre du bas ─ */
+
+@media (max-width: 768px) {
+    .nav-section-header,
+    .nav-empty-hint,
+    .nav-item-folder { display: none; }
+
+    .nav-item-folders-mobile { display: flex; }
+}
