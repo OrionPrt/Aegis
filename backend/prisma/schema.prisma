@@ -24,8 +24,17 @@ model User {
   // Incrémenté à chaque écriture du coffre : un client doit envoyer la
   // version dont il part, sinon la sauvegarde est refusée (409).
   vaultVersion     Int        @default(0)
+  // Remplacés par AuthThrottle (verrouillage commun aux emails connus et
+  // inconnus) : plus lus par le code, gardés le temps d'un déploiement.
   failedAttempts   Int        @default(0)
   lockedUntil      DateTime?
+  // Adresse confirmée par le lien envoyé à l'inscription ; null = en attente.
+  // Le défaut now() couvre les comptes existants et ceux créés par l'ancien
+  // code pendant le déploiement : le nouveau code met null explicitement.
+  emailVerifiedAt            DateTime? @default(now())
+  // sha256 du jeton du lien de confirmation (le jeton lui-même n'est pas stocké)
+  emailVerificationTokenHash String?   @unique
+  emailVerificationExpiresAt DateTime?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
@@ -68,6 +77,18 @@ model AuditLog {
   createdAt DateTime  @default(now())
 
   @@index([userId, createdAt(sort: Desc)])
+  // Requête « nouvelle IP » au login (routes/auth.ts)
+  @@index([userId, action, ipAddress])
+}
+
+// Verrouillage anti-brute-force, indexé par HMAC de l'email plutôt que par
+// compte : une adresse sans compte se verrouille exactement comme une adresse
+// inscrite, le 429 ne révèle donc plus qu'un compte existe.
+model AuthThrottle {
+  key            String    @id
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  updatedAt      DateTime  @updatedAt
 }
 
 enum AuditAction {
@@ -81,4 +102,5 @@ enum AuditAction {
   ACCOUNT_DELETED
   ACCOUNT_DELETE_FAILED
   PASSWORD_CHANGE_ATTEMPT
+  EMAIL_VERIFIED
 }
