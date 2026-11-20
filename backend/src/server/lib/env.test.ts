@@ -18,7 +18,12 @@ describe("checkEnvironment", () => {
     });
 
     it("has nothing to report for a complete configuration", () => {
-        expect(checkEnvironment({ NODE_ENV: "production", JWT_SECRET: STRONG_SECRET, DATABASE_URL: "postgresql://x", APP_URL: "https://aegis.example" })).toEqual([]);
+        expect(checkEnvironment({ NODE_ENV: "production", JWT_SECRET: STRONG_SECRET, DATABASE_URL: "postgresql://x", APP_URL: "https://aegis.example", CRON_SECRET: "c" })).toEqual([]);
+    });
+
+    it("warns in production when the nightly purge cannot run (no CRON_SECRET)", () => {
+        const warnings = checkEnvironment({ NODE_ENV: "production", JWT_SECRET: STRONG_SECRET, DATABASE_URL: "postgresql://x", APP_URL: "https://aegis.example" });
+        expect(warnings.join(" ")).toMatch(/CRON_SECRET/);
     });
 
     it("refuses to start in production without a public URL for email links", () => {
@@ -26,6 +31,6 @@ describe("checkEnvironment", () => {
     });
 
     it("accepts the production domain Vercel provides instead of APP_URL", () => {
-        expect(checkEnvironment({ NODE_ENV: "production", JWT_SECRET: STRONG_SECRET, DATABASE_URL: "postgresql://x", VERCEL_PROJECT_PRODUCTION_URL: "aegis.example" })).toEqual([]);
+        expect(checkEnvironment({ NODE_ENV: "production", JWT_SECRET: STRONG_SECRET, DATABASE_URL: "postgresql://x", VERCEL_PROJECT_PRODUCTION_URL: "aegis.example", CRON_SECRET: "c" })).toEqual([]);
     });
 });

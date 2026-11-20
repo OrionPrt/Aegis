@@ -15,7 +15,7 @@ import { LegalLayout } from "./LegalLayout";
 
 export default function PrivacyPage() {
     return (
-        <LegalLayout title="Politique de confidentialité" updated="18 septembre 2026">
+        <LegalLayout title="Politique de confidentialité" updated="20 novembre 2026">
             <h2>Qui traite vos données</h2>
             <p>
                 Aegis est édité par <strong>Aegis Protect Team</strong>,
@@ -39,7 +39,11 @@ export default function PrivacyPage() {
             <h2>Les données que nous collectons</h2>
             <p>Pour faire fonctionner le service, nous stockons :</p>
             <ul>
-                <li><strong>Votre adresse email</strong>, comme identifiant de compte.</li>
+                <li>
+                    <strong>Votre adresse email</strong>, comme identifiant de compte.
+                    Elle est confirmée à l'inscription par un lien envoyé à cette
+                    adresse : sans cette confirmation, le compte reste inactif.
+                </li>
                 <li>
                     <strong>Une empreinte cryptographique de votre mot de passe
                     maître</strong> (jamais le mot de passe lui-même), utilisée pour
@@ -83,7 +87,7 @@ export default function PrivacyPage() {
                 <li><strong>Neon</strong> - hébergement de la base de données (contenu chiffré).</li>
                 <li><strong>Vercel</strong> - hébergement de l'application.</li>
                 <li><strong>Upstash</strong> - limitation du nombre de requêtes (protection anti-abus), ne conserve que des compteurs par adresse IP sur de courtes durées.</li>
-                <li><strong>Resend</strong> - envoi des emails de sécurité (nouvelle connexion, changement de mot de passe, verrouillage de compte).</li>
+                <li><strong>Resend</strong> - envoi des emails liés à votre compte (confirmation de l'adresse à l'inscription, nouvelle connexion, changement de mot de passe, verrouillage de compte).</li>
                 <li>
                     <strong>Have I Been Pwned</strong> - uniquement si vous activez
                     la vérification de fuites : seuls les 5 premiers caractères d'une
@@ -103,19 +107,37 @@ export default function PrivacyPage() {
 
             <h2>Durée de conservation</h2>
             <p>
-                Vos données sont conservées tant que votre compte existe. Si vous
-                supprimez votre compte depuis l'application, votre email, l'empreinte
-                de votre mot de passe et le contenu chiffré de votre coffre-fort sont
-                effacés immédiatement et définitivement de notre base de données
-                active - cette action est irréversible.
+                Vos données de compte sont conservées tant que votre compte existe.
+                Si vous supprimez votre compte depuis l'application, votre email,
+                l'empreinte de votre mot de passe, le contenu chiffré de votre
+                coffre-fort et votre historique d'activité sont effacés
+                immédiatement et définitivement de notre base de données active -
+                cette action est irréversible.
             </p>
+            <p>Certaines données sont en outre supprimées automatiquement, chaque nuit :</p>
+            <ul>
+                <li>
+                    <strong>L'historique d'activité</strong> (connexions, adresses IP,
+                    appareils, actions sensibles) : chaque entrée est effacée
+                    <strong>un an</strong> après sa création.
+                </li>
+                <li>
+                    <strong>Les inscriptions jamais confirmées</strong> : effacées
+                    <strong>7 jours</strong> après leur création.
+                </li>
+                <li>
+                    <strong>Les sessions expirées</strong> et les compteurs de tentatives
+                    de connexion échouées (conservés sous forme d'empreinte, sans
+                    l'adresse email) : effacés dès qu'ils ne servent plus, au plus tard
+                    deux jours après.
+                </li>
+            </ul>
             <div className="legal-callout">
-                <strong>Point d'attention sur les sauvegardes :</strong> à la date de
-                rédaction de cette page, les sauvegardes chiffrées quotidiennes de la
-                base de données sont conservées indéfiniment, sans purge automatique.
-                Une copie chiffrée de vos données peut donc subsister dans ces
-                sauvegardes après la suppression de votre compte, jusqu'à ce qu'une
-                politique de rétention soit mise en place.
+                <strong>Sauvegardes :</strong> une sauvegarde chiffrée de la base de
+                données est réalisée chaque nuit et conservée <strong>90 jours</strong>.
+                Après la suppression de votre compte, une copie chiffrée de vos données
+                peut donc subsister dans ces sauvegardes pendant au plus 90 jours, avant
+                d'être effacée à son tour.
             </div>
 
             <h2>Vos droits</h2>
