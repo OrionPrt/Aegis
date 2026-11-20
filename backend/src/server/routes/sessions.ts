@@ -14,14 +14,13 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "./auth.js";
+import type { JwtPayload } from "./auth.js";
 import {
     getUserSessions,
     revokeSession,
     revokeAllSessions,
     logAudit,
 } from "../lib/audit.js";
-
-interface JwtPayload { sub: string; email: string; }
 
 // ─────────────────────────────────────────────────────────
 // ROUTES
@@ -35,21 +34,14 @@ export async function sessionRoutes(app: FastifyInstance) {
         "/",
         { preHandler: [requireAuth] },
         async (req: FastifyRequest, reply: FastifyReply) => {
-            const { sub: userId } = req.user as JwtPayload;
+            const { sub: userId, sid } = req.user as JwtPayload;
 
             const sessions = await getUserSessions(userId);
 
-            // Ajoute un flag "current" sur la session en cours
-            // (identifiée par l'IP + user-agent de la requête)
-            const currentIp = req.ip;
-            const currentUa = req.headers["user-agent"] ?? "";
-
-            const enriched = sessions.map((s) => ({
-                ...s,
-                isCurrent:
-                    s.ipAddress === currentIp &&
-                    s.userAgent === currentUa,
-            }));
+            // La session en cours est celle de l'access token (claim `sid`) :
+            // deux appareils derrière la même IP avec le même navigateur ne
+            // sont plus marqués tous les deux comme « Cet appareil ».
+            const enriched = sessions.map((s) => ({ ...s, isCurrent: s.id === sid }));
 
             return reply.send({ sessions: enriched });
         }

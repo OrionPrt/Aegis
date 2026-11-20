@@ -186,6 +186,57 @@ describe("apiFetch", () => {
     });
 });
 
+describe("access token refresh", () => {
+    afterEach(() => {
+        clearSession();
+        vi.unstubAllGlobals();
+    });
+
+    /** Répond 401 aux `rejectedApiCalls` premiers appels d'API, puis 200. */
+    function routedFetch(refreshResponses: Response[], rejectedApiCalls: number) {
+        const refreshCalls: unknown[] = [];
+        let apiCalls = 0;
+        const fetchMock = vi.fn(async (url: string) => {
+            if (url.endsWith("/auth/refresh")) {
+                refreshCalls.push(url);
+                return refreshResponses.shift() ?? jsonResponse({ message: "no more" }, 401);
+            }
+            apiCalls += 1;
+            return apiCalls <= rejectedApiCalls ? jsonResponse({ message: "expired" }, 401) : jsonResponse({ ok: true });
+        });
+        return { fetchMock, refreshCalls };
+    }
+
+    it("shares one refresh between parallel requests that hit a 401", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok-1", expiresAt: FAR_FUTURE }, 201)));
+        await register("user@example.com", "MasterPassw0rd!");
+        const { fetchMock, refreshCalls } = routedFetch([
+            jsonResponse({ accessToken: "tok-2", expiresAt: FAR_FUTURE, email: "user@example.com" }),
+        ], 2);
+        vi.stubGlobal("fetch", fetchMock);
+
+        await Promise.all([apiFetch("/sessions"), apiFetch("/sessions/audit")]);
+
+        expect(refreshCalls).toHaveLength(1);
+        expect(getSession()?.tokens.accessToken).toBe("tok-2");
+    });
+
+    it("retries once when another tab rotated the session at the same moment", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ accessToken: "tok-1", expiresAt: FAR_FUTURE }, 201)));
+        await register("user@example.com", "MasterPassw0rd!");
+        const { fetchMock, refreshCalls } = routedFetch([
+            jsonResponse({ message: "Session invalide." }, 401),
+            jsonResponse({ accessToken: "tok-3", expiresAt: FAR_FUTURE, email: "user@example.com" }),
+        ], 1);
+        vi.stubGlobal("fetch", fetchMock);
+
+        await apiFetch("/vault");
+
+        expect(refreshCalls).toHaveLength(2);
+        expect(getSession()?.tokens.accessToken).toBe("tok-3");
+    });
+});
+
 describe("changeMasterPassword / deleteAccount (dedicated fetch, no auto-retry)", () => {
     afterEach(() => {
         clearSession();

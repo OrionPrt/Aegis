@@ -356,15 +356,41 @@ export async function deleteAccount(password: string): Promise<void> {
 // RAFRAÎCHISSEMENT DU TOKEN
 // ─────────────────────────────────────────────────────────
 
+/** Délai avant de retenter un rafraîchissement perdu face à un autre onglet. */
+const REFRESH_RETRY_DELAY_MS = 500;
+
+let refreshInFlight: Promise<string> | null = null;
+
 /**
  * Rafraîchit l'access token via le refresh token (cookie httpOnly).
  * Appelé automatiquement par apiFetch() quand l'access token expire.
+ *
+ * Un seul rafraîchissement à la fois dans l'onglet : le serveur n'accepte
+ * qu'une rotation par refresh token, des requêtes parallèles en 401 (ex.
+ * Promise.all de SessionsPage) se le disputeraient sinon.
  */
-async function refreshAccessToken(): Promise<string> {
-    const response = await fetch("/api/auth/refresh", {
+function refreshAccessToken(): Promise<string> {
+    refreshInFlight ??= performRefresh().finally(() => { refreshInFlight = null; });
+    return refreshInFlight;
+}
+
+function postRefresh(): Promise<Response> {
+    return fetch("/api/auth/refresh", {
         method: "POST",
         credentials: "include", // envoie le cookie httpOnly
     });
+}
+
+async function performRefresh(): Promise<string> {
+    let response = await postRefresh();
+
+    // Un autre onglet a pu tourner la session avec le même cookie à
+    // l'instant : sa réponse pose le nouveau cookie, une seconde tentative
+    // l'utilise.
+    if (response.status === 401) {
+        await new Promise((resolve) => setTimeout(resolve, REFRESH_RETRY_DELAY_MS));
+        response = await postRefresh();
+    }
 
     if (!response.ok) {
         clearSession();
