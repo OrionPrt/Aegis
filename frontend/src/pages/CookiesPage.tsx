@@ -14,7 +14,7 @@ import { LegalLayout } from "./LegalLayout";
 
 export default function CookiesPage() {
     return (
-        <LegalLayout title="Politique cookies" updated="18 septembre 2026">
+        <LegalLayout title="Politique cookies" updated="20 novembre 2026">
             <h2>Un seul cookie, strictement nécessaire</h2>
             <p>
                 Aegis n'utilise qu'un seul cookie : <strong>aegis_rt</strong>, qui
@@ -24,7 +24,7 @@ export default function CookiesPage() {
             <ul>
                 <li><strong>Nom :</strong> aegis_rt</li>
                 <li><strong>Finalité :</strong> maintenir votre session active pendant que l'application reste ouverte, en renouvelant automatiquement votre accès toutes les 15 minutes sans interrompre votre navigation</li>
-                <li><strong>Durée :</strong> 24 heures côté serveur, ou jusqu'à déconnexion manuelle - mais en pratique, la clé qui déchiffre votre coffre-fort n'existe qu'en mémoire de votre navigateur et disparaît dès que vous fermez l'onglet ou rechargez la page : vous devrez donc retaper votre mot de passe maître à chaque nouvelle ouverture de l'application, indépendamment de ce cookie</li>
+                <li><strong>Durée :</strong> 24 heures après sa dernière utilisation (chaque renouvellement repousse l'échéance), dans la limite de 30 jours après la connexion, ou jusqu'à déconnexion manuelle - mais en pratique, la clé qui déchiffre votre coffre-fort n'existe qu'en mémoire de votre navigateur et disparaît dès que vous fermez l'onglet, rechargez la page ou que le coffre-fort se verrouille après une période d'inactivité : vous devrez donc retaper votre mot de passe maître à chaque nouvelle ouverture de l'application, indépendamment de ce cookie</li>
                 <li><strong>Portée :</strong> uniquement les requêtes vers <code>/api/auth</code> de ce site</li>
                 <li><strong>Protection technique :</strong> <code>HttpOnly</code> (illisible par un script JavaScript), <code>Secure</code> (transmis uniquement en HTTPS), <code>SameSite=Strict</code> (jamais envoyé depuis un autre site)</li>
             </ul>
@@ -36,7 +36,9 @@ export default function CookiesPage() {
                 rester connecté à votre coffre-fort. Le RGPD et la directive
                 ePrivacy exemptent ce type de cookie de l'obligation de recueillir
                 votre consentement préalable. C'est le seul cookie que nous posons,
-                donc aucun bandeau n'est nécessaire.
+                et Aegis n'enregistre rien d'autre dans votre navigateur (ni
+                localStorage, ni sessionStorage, ni base IndexedDB) : aucun bandeau
+                n'est donc nécessaire.
             </p>
 
             <h2>Aucun cookie tiers, aucun tracker</h2>

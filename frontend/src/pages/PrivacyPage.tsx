@@ -59,17 +59,25 @@ export default function PrivacyPage() {
                     type d'appareil/navigateur, horodatages de connexion,
                     tentatives échouées - utilisées pour détecter les connexions
                     suspectes (nouvelle IP inhabituelle, tentatives de force brute)
-                    et vous en informer par email.
+                    et vous en informer par email. Elles sont enregistrées pour
+                    chaque appareil connecté et dans l'historique d'activité de
+                    votre compte, que vous pouvez consulter dans la page Sécurité.
                 </li>
             </ul>
 
             <h2>Pourquoi nous les utilisons</h2>
             <ul>
-                <li>Faire fonctionner votre compte et votre coffre-fort.</li>
+                <li>
+                    Faire fonctionner votre compte et votre coffre-fort - base
+                    légale : l'exécution des conditions d'utilisation que vous
+                    acceptez en créant un compte.
+                </li>
                 <li>
                     Sécuriser votre compte : verrouillage temporaire après plusieurs
                     échecs de connexion, alerte email en cas de nouvelle connexion
-                    inhabituelle ou de changement de mot de passe.
+                    inhabituelle, de verrouillage ou de changement de mot de passe -
+                    base légale : notre intérêt légitime à protéger les comptes
+                    contre les accès non autorisés.
                 </li>
                 <li>Répondre à nos obligations légales le cas échéant.</li>
             </ul>
@@ -85,19 +93,32 @@ export default function PrivacyPage() {
             </p>
             <ul>
                 <li><strong>Neon</strong> - hébergement de la base de données (contenu chiffré).</li>
-                <li><strong>Vercel</strong> - hébergement de l'application.</li>
-                <li><strong>Upstash</strong> - limitation du nombre de requêtes (protection anti-abus), ne conserve que des compteurs par adresse IP sur de courtes durées.</li>
-                <li><strong>Resend</strong> - envoi des emails liés à votre compte (confirmation de l'adresse à l'inscription, nouvelle connexion, changement de mot de passe, verrouillage de compte).</li>
                 <li>
-                    <strong>Have I Been Pwned</strong> - uniquement si vous activez
-                    la vérification de fuites : seuls les 5 premiers caractères d'une
-                    empreinte de votre mot de passe sont envoyés (méthode dite de
-                    "k-anonymat"), jamais le mot de passe ni une empreinte complète
-                    permettant de le retrouver.
+                    <strong>Vercel</strong> - hébergement de l'application. Ses
+                    journaux techniques enregistrent l'adresse IP et la page demandée
+                    pour chaque requête (jamais votre adresse email).
+                </li>
+                <li><strong>Upstash</strong> - limitation du nombre de requêtes (protection anti-abus), ne conserve que des compteurs par adresse IP sur une fenêtre d'une minute.</li>
+                <li>
+                    <strong>Resend</strong> - envoi des emails liés à votre compte
+                    (confirmation de l'adresse à l'inscription, nouvelle connexion,
+                    changement de mot de passe, verrouillage de compte). Les alertes
+                    de sécurité indiquent la date, l'adresse IP et l'appareil à
+                    l'origine de l'événement.
                 </li>
                 <li>
-                    <strong>GitHub</strong> - stockage de sauvegardes chiffrées de la
-                    base de données (voir "Durée de conservation" ci-dessous).
+                    <strong>Have I Been Pwned</strong> - uniquement si vous lancez
+                    la vérification de fuites depuis la page "Analyse du vault" :
+                    seuls les 5 premiers caractères d'une empreinte de chaque mot de
+                    passe sont envoyés (méthode dite de "k-anonymat"), jamais le mot
+                    de passe ni une empreinte complète permettant de le retrouver.
+                    Votre navigateur contacte ce service directement, qui voit donc
+                    votre adresse IP.
+                </li>
+                <li>
+                    <strong>GitHub</strong> - stockage, dans un dépôt privé, des
+                    sauvegardes chiffrées de la base de données (voir "Durée de
+                    conservation" ci-dessous).
                 </li>
             </ul>
             <p>
@@ -114,15 +135,20 @@ export default function PrivacyPage() {
                 immédiatement et définitivement de notre base de données active -
                 cette action est irréversible.
             </p>
+            <p>
+                Une session de connexion expire 24 heures après sa dernière
+                utilisation, et au plus tard 30 jours après la connexion. Au-delà de
+                5 appareils connectés, la session la plus ancienne est fermée.
+            </p>
             <p>Certaines données sont en outre supprimées automatiquement, chaque nuit :</p>
             <ul>
                 <li>
                     <strong>L'historique d'activité</strong> (connexions, adresses IP,
-                    appareils, actions sensibles) : chaque entrée est effacée
+                    appareils, actions sensibles) : chaque entrée est effacée{" "}
                     <strong>un an</strong> après sa création.
                 </li>
                 <li>
-                    <strong>Les inscriptions jamais confirmées</strong> : effacées
+                    <strong>Les inscriptions jamais confirmées</strong> : effacées{" "}
                     <strong>7 jours</strong> après leur création.
                 </li>
                 <li>
@@ -133,21 +159,32 @@ export default function PrivacyPage() {
                 </li>
             </ul>
             <div className="legal-callout">
-                <strong>Sauvegardes :</strong> une sauvegarde chiffrée de la base de
-                données est réalisée chaque nuit et conservée <strong>90 jours</strong>.
-                Après la suppression de votre compte, une copie chiffrée de vos données
-                peut donc subsister dans ces sauvegardes pendant au plus 90 jours, avant
-                d'être effacée à son tour.
+                <strong>Sauvegardes :</strong> une sauvegarde de la base de données,
+                chiffrée en AES-256, est réalisée chaque nuit et conservée{" "}
+                <strong>90 jours</strong> ; les sauvegardes plus anciennes sont
+                supprimées automatiquement. Après la suppression de votre compte, une
+                copie chiffrée de vos données (email, historique d'activité, coffre-fort
+                chiffré) peut donc subsister dans ces sauvegardes pendant environ 90
+                jours, avant d'être effacée à son tour. Ces sauvegardes ne servent qu'à
+                restaurer le service après un incident : elles ne permettent pas de
+                récupérer un compte supprimé.
             </div>
 
             <h2>Vos droits</h2>
             <p>
                 Selon votre lieu de résidence, vous disposez de droits sur vos
                 données personnelles : accès, rectification, effacement, limitation,
-                portabilité, opposition. Vous pouvez exercer la plupart de ces droits
-                directement depuis l'application (modification de vos identifiants,
-                export ou suppression du compte). Pour toute autre demande, contactez-nous
-                via <strong>contact@aegis-protect.fr</strong>.
+                portabilité, opposition. Depuis l'application, vous pouvez consulter
+                vos appareils connectés et votre historique d'activité (page
+                Sécurité), déconnecter un appareil, changer votre mot de passe maître
+                et supprimer votre compte. Le changement d'adresse email et l'export
+                du coffre-fort ne sont pas encore disponibles dans l'application :
+                pour ces demandes comme pour toute autre, contactez-nous via{" "}
+                <strong>contact@aegis-protect.fr</strong>.
+            </p>
+            <p>
+                Si vous estimez que vos droits ne sont pas respectés, vous pouvez
+                adresser une réclamation à la CNIL (www.cnil.fr).
             </p>
             <p>
                 Notez une limite propre au chiffrement de bout en bout : si vous
@@ -161,7 +198,9 @@ export default function PrivacyPage() {
                 Dérivation de clé Argon2id, chiffrement AES-256-GCM, connexions
                 chiffrées en HTTPS, mots de passe hachés (jamais stockés en clair),
                 verrouillage de compte après plusieurs tentatives infructueuses,
-                notifications email sur les événements sensibles.
+                notifications email sur les événements sensibles. Dans le navigateur,
+                le coffre-fort se verrouille après 10 minutes d'inactivité (5 minutes
+                si l'onglet est en arrière-plan).
             </p>
 
             <h2>Cookies</h2>

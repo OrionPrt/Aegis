@@ -12,7 +12,7 @@ import { LegalLayout } from "./LegalLayout";
 
 export default function TermsPage() {
     return (
-        <LegalLayout title="Conditions d'utilisation" updated="18 septembre 2026">
+        <LegalLayout title="Conditions d'utilisation" updated="20 novembre 2026">
             <h2>1. Objet</h2>
             <p>
                 Aegis est un gestionnaire de mots de passe fonctionnant selon un
@@ -41,6 +41,12 @@ export default function TermsPage() {
             <h2>3. Création et utilisation du compte</h2>
             <ul>
                 <li>Vous devez fournir une adresse email valide et vous en assurer l'accès (utilisée pour les notifications de sécurité).</li>
+                <li>
+                    Le compte n'est activé qu'après confirmation de cette adresse, par
+                    le lien envoyé à l'inscription (valable 24 heures, renouvelable
+                    depuis l'écran de connexion). Une inscription jamais confirmée est
+                    supprimée au bout de 7 jours.
+                </li>
                 <li>Vous devez utiliser un mot de passe maître suffisamment robuste (l'application vous guide sur ce point à l'inscription).</li>
                 <li>Vous êtes responsable de toute activité effectuée depuis votre compte.</li>
                 <li>Un seul compte par personne, à usage personnel.</li>
@@ -50,10 +56,16 @@ export default function TermsPage() {
             <p>
                 Le service verrouille temporairement l'accès après plusieurs
                 tentatives de connexion infructueuses et vous notifie par email en
-                cas de changement de mot de passe, de suppression de compte, ou de
-                connexion depuis une adresse IP inhabituelle. Ces mesures visent à
-                détecter une utilisation non autorisée de votre compte - signalez-nous
+                cas de verrouillage, de changement de mot de passe, ou de connexion
+                depuis une adresse IP inhabituelle. Ces mesures visent à détecter une
+                utilisation non autorisée de votre compte - signalez-nous
                 immédiatement toute activité suspecte à <strong>contact@aegis-protect.fr</strong>.
+            </p>
+            <p>
+                La page Sécurité de l'application liste les appareils connectés et
+                l'historique d'activité du compte, et permet de déconnecter un appareil
+                ou tous à la fois. Le coffre-fort se verrouille de lui-même après une
+                période d'inactivité : il faut alors retaper le mot de passe maître.
             </p>
 
             <h2>5. Ce que vous ne devez pas faire</h2>
@@ -86,9 +98,10 @@ export default function TermsPage() {
                 l'application, après confirmation de votre mot de passe maître.
                 Cette action est <strong>définitive et irréversible</strong> : le
                 contenu de votre coffre-fort est effacé de notre base de données
-                active immédiatement (voir notre{" "}
-                <Link to="/privacy" replace>politique de confidentialité</Link> pour le détail
-                concernant les sauvegardes).
+                active immédiatement. Une copie chiffrée peut subsister jusqu'à 90 jours
+                environ dans les sauvegardes, qui ne permettent pas de restaurer un
+                compte supprimé (voir notre{" "}
+                <Link to="/privacy" replace>politique de confidentialité</Link>).
             </p>
 
             <h2>8. Modifications du service et des conditions</h2>
