@@ -15,9 +15,8 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { MAX_VAULT_CIPHERTEXT_LENGTH, VAULT_BODY_LIMIT } from "../lib/limits.js";
 import { prisma } from "../lib/prisma.js";
-import { requireAuth, MAX_FAILED_ATTEMPTS, LOCKOUT_DURATION_MS } from "./auth.js";
-import { getIp, getUserAgent, logAudit } from "../lib/audit.js";
-import { sendAccountLockedEmail } from "../lib/email.js";
+import { requireAuth } from "./auth.js";
+import { recordFailedAttempt, reserveAttempt, sendLocked } from "../lib/lockout.js";
 
 // ─────────────────────────────────────────────────────────
 // TYPES
@@ -157,31 +156,12 @@ export async function vaultRoutes(app: FastifyInstance) {
                 return reply.status(404).send({ message: "Utilisateur introuvable." });
             }
 
-            if (user.lockedUntil && user.lockedUntil > new Date()) {
-                const retryAfter = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 1000);
-                return reply
-                    .status(429)
-                    .header("Retry-After", String(retryAfter))
-                    .send({ message: `Compte bloqué. Réessayez dans ${retryAfter}s.` });
-            }
+            const retryAfter = await reserveAttempt(userId);
+            if (retryAfter !== null) return sendLocked(reply, retryAfter);
 
             const isValid = await bcrypt.compare(authKeyHex, user.authKeyHash);
             if (!isValid) {
-                const failedAttempts = user.failedAttempts + 1;
-                const justLocked     = failedAttempts >= MAX_FAILED_ATTEMPTS;
-                await prisma.user.update({
-                    where: { id: userId },
-                    data: {
-                        failedAttempts,
-                        ...(justLocked && {
-                            lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS),
-                        }),
-                    },
-                });
-                await logAudit(userId, "ACCOUNT_DELETE_FAILED", req, { failedAttempts });
-                if (justLocked) {
-                    await sendAccountLockedEmail(user.email, { ipAddress: getIp(req), userAgent: getUserAgent(req) });
-                }
+                await recordFailedAttempt(userId, user.email, req, "ACCOUNT_DELETE_FAILED");
                 return reply.status(401).send({ message: "Mot de passe incorrect." });
             }
 

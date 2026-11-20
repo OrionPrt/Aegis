@@ -14,8 +14,7 @@ import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import fastifyJwt from "@fastify/jwt";
 import fastifyCookie from "@fastify/cookie";
 import fastifyHelmet from "@fastify/helmet";
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
+import { createRateLimiters, registerRateLimiting } from "./lib/rate-limit.js";
 import { authRoutes } from "./routes/auth.js";
 import { vaultRoutes } from "./routes/vault.js";
 import { sessionRoutes } from "./routes/sessions.js";
@@ -57,38 +56,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     });
 
     // ─── Rate Limiting (Upstash Redis) ─────────────────────────
-    // Remplace @fastify/rate-limit : son store en mémoire ne fonctionne
-    // pas correctement en serverless (chaque instance a sa propre mémoire,
-    // isolée des autres). Upstash centralise le compteur côté Redis.
-    //
-    // Désactivé (avec avertissement) quand les identifiants Upstash ne sont
-    // pas configurés - permet de faire tourner l'app en local/dev/CI sans
-    // dépendre d'un compte Upstash réel. En production, ces variables sont
-    // toujours définies (voir docs/deployment.md) donc ce chemin n'est
-    // jamais emprunté en conditions réelles.
-    const ratelimit = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-        ? new Ratelimit({
-              redis: Redis.fromEnv(),
-              limiter: Ratelimit.slidingWindow(100, "1 m"),
-              analytics: false,
-          })
-        : null;
-
-    if (!ratelimit) {
-        app.log.warn("UPSTASH_REDIS_REST_URL/TOKEN absents - rate limiting désactivé.");
-    }
-
-    app.addHook("preHandler", async (req, reply) => {
-        if (!ratelimit) return;
-        const { success, reset } = await ratelimit.limit(req.ip);
-        if (!success) {
-            const retryAfter = Math.ceil((reset - Date.now()) / 1000);
-            return reply
-                .status(429)
-                .header("Retry-After", String(retryAfter))
-                .send({ message: "Trop de requêtes. Réessayez plus tard." });
-        }
-    });
+    // Voir lib/rate-limit.ts : limite globale + limite stricte sur les routes
+    // d'authentification ; refuse de démarrer en production sans Upstash.
+    registerRateLimiting(app, createRateLimiters());
 
     // ─── Gestion des erreurs globales ─────────────────────────
     // Déclaré AVANT l'enregistrement des routes : un plugin enregistré via
