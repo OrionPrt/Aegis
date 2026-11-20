@@ -3,7 +3,8 @@ import {
     register, login, logout, clearSession, getSession, isAuthenticated, subscribeSession,
     apiFetch, changeMasterPassword, deleteAccount, AuthError, verifyEmail, resendVerification,
 } from "./auth-client.js";
-import { CURRENT_KDF_VERSION } from "./crypto.js";
+import { CURRENT_KDF_VERSION, decryptVault, deriveKeys } from "./crypto.js";
+import { EMPTY_VAULT, type VaultData } from "./vault-format.js";
 
 function jsonResponse(body: unknown, status = 200): Response {
     return {
@@ -252,7 +253,7 @@ describe("changeMasterPassword / deleteAccount (dedicated fetch, no auto-retry)"
             .mockResolvedValueOnce(jsonResponse({ message: "Mot de passe actuel incorrect." }, 401)); // POST /auth/change-password
         vi.stubGlobal("fetch", fetchMock);
 
-        await expect(changeMasterPassword("WrongPassword!", "NewPassword!", [], 0)).rejects.toThrow(AuthError);
+        await expect(changeMasterPassword("WrongPassword!", "NewPassword!", EMPTY_VAULT, 0)).rejects.toThrow(AuthError);
         // Exactement 2 appels réseau - jamais de retry automatique qui
         // compterait deux fois la même tentative échouée côté serveur.
         expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -266,11 +267,29 @@ describe("changeMasterPassword / deleteAccount (dedicated fetch, no auto-retry)"
             .mockResolvedValueOnce(jsonResponse({ message: "ok" }, 200));
         vi.stubGlobal("fetch", fetchMock);
 
-        await changeMasterPassword("MasterPassw0rd!", "NewMasterPassw0rd!", [], 7);
+        await changeMasterPassword("MasterPassw0rd!", "NewMasterPassw0rd!", EMPTY_VAULT, 7);
 
         const body = JSON.parse(fetchMock.mock.calls[1][1].body);
         expect(body.baseVersion).toBe(7);
         expect(body.vault.iv).toBeTruthy();
+    });
+
+    it("changeMasterPassword re-encrypts the folders with the entries, under the new key", async () => {
+        await openSession("user@example.com", "tok");
+        const vault: VaultData = {
+            entries: [{ id: "e1", label: "GitHub", folderId: "f1", createdAt: 1, updatedAt: 1 }],
+            folders: [{ id: "f1", name: "Perso", createdAt: 1, updatedAt: 1 }],
+        };
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(jsonResponse({ saltBase64: SALT }))
+            .mockResolvedValueOnce(jsonResponse({ message: "ok" }, 200));
+        vi.stubGlobal("fetch", fetchMock);
+
+        await changeMasterPassword("MasterPassw0rd!", "NewMasterPassw0rd!", vault, 0);
+
+        const body = JSON.parse(fetchMock.mock.calls[1][1].body);
+        const { masterKey } = await deriveKeys("NewMasterPassw0rd!", "user@example.com", SALT);
+        await expect(decryptVault(body.vault, masterKey)).resolves.toEqual(vault);
     });
 
     it("deleteAccount re-derives the auth key from the freshly typed password, not the one in memory", async () => {

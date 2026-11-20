@@ -9,6 +9,10 @@
  *   2. Déchiffrement local avec la masterKey en mémoire
  *   3. Sauvegarde chiffrée après chaque modification
  *
+ * Le coffre se lit et s'écrit en entier (entrées + dossiers, voir
+ * lib/vault-format.ts) : une modification qui touche les deux, comme la
+ * suppression d'un dossier, part en une seule sauvegarde.
+ *
  * Chaque sauvegarde envoie la version du coffre dont elle part : si un autre
  * appareil a sauvegardé entre-temps, le serveur refuse (409) et le hook
  * recharge la dernière version au lieu d'écraser ses changements. Les
@@ -21,6 +25,7 @@ import { encryptVault, decryptVault } from "../lib/crypto";
 import { apiFetch, getSession, AuthError } from "../lib/auth-client";
 import type { AuthSession } from "../lib/auth-client";
 import type { VaultEntry } from "../lib/crypto";
+import { EMPTY_VAULT, type VaultData, type VaultFolder } from "../lib/vault-format";
 
 // ─────────────────────────────────────────────────────────
 // TYPES
@@ -30,11 +35,12 @@ export type VaultStatus = "idle" | "loading" | "ready" | "saving" | "error";
 
 export interface UseVaultReturn {
     entries:     VaultEntry[];
+    folders:     VaultFolder[];
     status:      VaultStatus;
     error:       string | null;
     /** Version serveur du coffre actuellement affiché. */
     version:     number;
-    saveVault:   (updated: VaultEntry[]) => Promise<void>;
+    saveVault:   (updated: VaultData) => Promise<void>;
 }
 
 interface VaultResponse {
@@ -60,12 +66,12 @@ export class VaultConflictError extends Error {
 }
 
 /** Télécharge et déchiffre le coffre courant. */
-async function fetchVault(session: AuthSession): Promise<{ entries: VaultEntry[]; version: number }> {
+async function fetchVault(session: AuthSession): Promise<{ vault: VaultData; version: number }> {
     const response = await apiFetch("/vault") as VaultResponse;
-    const entries = response.vault
+    const vault = response.vault
         ? await decryptVault(response.vault, session.keys.masterKey)
-        : [];
-    return { entries, version: response.version };
+        : EMPTY_VAULT;
+    return { vault, version: response.version };
 }
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -77,7 +83,7 @@ function errorMessage(err: unknown, fallback: string): string {
 // ─────────────────────────────────────────────────────────
 
 export function useVault(): UseVaultReturn {
-    const [entries, setEntries] = useState<VaultEntry[]>([]);
+    const [vault,   setVault]   = useState<VaultData>(EMPTY_VAULT);
     const [status,  setStatus]  = useState<VaultStatus>("idle");
     const [error,   setError]   = useState<string | null>(null);
     const [version, setVersion] = useState(0);
@@ -108,7 +114,7 @@ export function useVault(): UseVaultReturn {
                 const loaded = await fetchVault(session);
                 if (cancelled) return;
                 applyVersion(loaded.version);
-                setEntries(loaded.entries);
+                setVault(loaded.vault);
                 setStatus("ready");
             } catch (err) {
                 if (!cancelled) {
@@ -128,7 +134,7 @@ export function useVault(): UseVaultReturn {
         try {
             const latest = await fetchVault(session);
             applyVersion(latest.version);
-            setEntries(latest.entries);
+            setVault(latest.vault);
             setError(VAULT_CONFLICT_MESSAGE);
             setStatus("ready");
         } catch (err) {
@@ -137,7 +143,7 @@ export function useVault(): UseVaultReturn {
         }
     }, [applyVersion]);
 
-    const persist = useCallback(async (updated: VaultEntry[]) => {
+    const persist = useCallback(async (updated: VaultData) => {
         const session = getSession();
         if (!session) throw new Error("Session expirée.");
 
@@ -152,7 +158,7 @@ export function useVault(): UseVaultReturn {
             }) as SaveResponse;
 
             applyVersion(saved.version);
-            setEntries(updated);
+            setVault(updated);
             setStatus("ready");
         } catch (err) {
             if (err instanceof AuthError && err.status === HTTP_CONFLICT) {
@@ -165,12 +171,12 @@ export function useVault(): UseVaultReturn {
         }
     }, [applyVersion, reloadAfterConflict]);
 
-    const saveVault = useCallback((updated: VaultEntry[]) => {
+    const saveVault = useCallback((updated: VaultData) => {
         // Une sauvegarde échouée ne bloque pas les suivantes.
         const run = saveQueue.current.catch(() => undefined).then(() => persist(updated));
         saveQueue.current = run;
         return run;
     }, [persist]);
 
-    return { entries, status, error, version, saveVault };
+    return { entries: vault.entries, folders: vault.folders, status, error, version, saveVault };
 }

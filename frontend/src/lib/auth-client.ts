@@ -24,7 +24,8 @@
  *  5. masterKey reste uniquement en mémoire, jamais persistée
  */
 
-import { deriveKeys, generateSalt, encryptVault, CURRENT_KDF_VERSION, type DerivedKeys, type EncryptedPayload, type VaultEntry } from "./crypto";
+import { deriveKeys, generateSalt, encryptVault, CURRENT_KDF_VERSION, type DerivedKeys, type EncryptedPayload } from "./crypto";
+import type { VaultData } from "./vault-format";
 
 // ─────────────────────────────────────────────────────────
 // TYPES
@@ -256,16 +257,17 @@ export interface ChangePasswordPayload {
  *     en une seule opération, et révoque toutes les sessions actives
  *  5. Efface la session locale — l'utilisateur doit se reconnecter partout
  *
- * @param vaultEntries - Les entrées du vault actuellement en mémoire (déjà
- *                       déchiffrées), à rechiffrer avec la nouvelle clé
- * @param baseVersion  - Version du coffre dont viennent ces entrées : le
+ * @param vault        - Le coffre complet actuellement en mémoire (entrées ET
+ *                       dossiers, déjà déchiffrés), à rechiffrer avec la
+ *                       nouvelle clé : ce qui n'y est pas serait perdu
+ * @param baseVersion  - Version du coffre dont vient ce contenu : le
  *                       serveur refuse (409) si un autre appareil a sauvegardé
  *                       depuis, plutôt que de perdre ses changements
  */
 export async function changeMasterPassword(
     currentPassword: string,
     newPassword: string,
-    vaultEntries: VaultEntry[],
+    vault: VaultData,
     baseVersion: number
 ): Promise<void> {
     const session = getSession();
@@ -280,12 +282,12 @@ export async function changeMasterPassword(
     const currentKeys = await deriveKeys(currentPassword, email, saltBase64, kdfVersion);
     const newKeys     = await deriveKeys(newPassword, email, saltBase64, kdfVersion);
 
-    const vault = await encryptVault(vaultEntries, newKeys.masterKey);
+    const encryptedVault = await encryptVault(vault, newKeys.masterKey);
 
     const payload: ChangePasswordPayload = {
         currentAuthKeyHex: currentKeys.authKeyHex,
         newAuthKeyHex:     newKeys.authKeyHex,
-        vault,
+        vault:             encryptedVault,
         baseVersion,
     };
 
