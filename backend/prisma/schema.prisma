@@ -16,8 +16,14 @@ model User {
   email            String     @unique
   authKeyHash      String
   saltBase64       String
+  // Version des paramètres Argon2 avec lesquels le client dérive ses clés
+  // (voir lib/kdf.ts) : permet de les renforcer sans casser les comptes existants.
+  kdfVersion       Int        @default(1)
   vaultData        String?
   vaultIv          String?
+  // Incrémenté à chaque écriture du coffre : un client doit envoyer la
+  // version dont il part, sinon la sauvegarde est refusée (409).
+  vaultVersion     Int        @default(0)
   failedAttempts   Int        @default(0)
   lockedUntil      DateTime?
   createdAt        DateTime   @default(now())
@@ -36,6 +42,10 @@ model Session {
 
   lookupToken      String    @unique  // 16 bytes hex - recherche O(1) par index
   refreshTokenHash String             // bcrypt(secretToken) - vérification
+  // lookupToken d'avant la dernière rotation : le revoir passé un court
+  // délai de grâce signale un refresh token volé et rejoué (session révoquée).
+  previousLookupToken String?  @unique
+  rotatedAt        DateTime?
   userAgent        String?   // "Chrome 124 / macOS"
   ipAddress        String?
   lastUsedAt       DateTime  @default(now())
